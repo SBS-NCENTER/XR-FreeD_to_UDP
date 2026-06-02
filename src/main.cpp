@@ -36,6 +36,7 @@
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <SPI.h>
+#include <WDT.h>
 
 // ============================================================================
 // 디버그 모드 설정
@@ -142,6 +143,18 @@ uint32_t g_lastLinkCheckMs = 0;
 // DHCP 재시도 설정
 constexpr uint8_t DHCP_MAX_RETRIES = 3;
 constexpr uint32_t DHCP_RETRY_DELAY_MS = 1000;
+
+// DHCP 호출 타임아웃. 워치독 최대(~5.59s) 안에 단일 블로킹이 들어오도록 축소한다.
+// (기본 5000/4000ms는 lease 갱신이 길어질 때 쇼 도중 WDT 오작동 reset을 유발)
+// DHCP는 보통 100ms 안에 응답하므로 2000/1500ms로도 충분하다.
+constexpr uint32_t DHCP_TIMEOUT_MS = 2000;
+constexpr uint32_t DHCP_RESPONSE_TIMEOUT_MS = 1500;
+
+// W5500 재전송(ARP 포함) 타임아웃 튜닝. 기본 RTR=200ms x RCR=8 = ~1.8s 블로킹을
+// 20ms x (1+1) = ~40ms로 제한하여, 도달 불가 target으로의 endPacket()이
+// loop와 Serial1 RX를 굶기지 않게 한다.
+constexpr uint16_t W5500_RETRANSMIT_MS = 20;
+constexpr uint8_t W5500_RETRANSMIT_COUNT = 1;
 
 // ============================================================================
 // FreeD 프레임 처리 변수
@@ -266,6 +279,14 @@ void saveConfig() {
 // 네트워크 함수
 // ============================================================================
 
+// W5500 재전송 타임아웃을 짧게 설정한다. Ethernet.begin()이 칩을 리셋하므로
+// begin() 직후 매번 호출해야 한다. (RTR/RCR은 공용 레지스터라 1회 설정으로 모든
+// socket에 적용)
+void applyW5500Timeouts() {
+  Ethernet.setRetransmissionTimeout(W5500_RETRANSMIT_MS);
+  Ethernet.setRetransmissionCount(W5500_RETRANSMIT_COUNT);
+}
+
 bool initNetwork() {
   DEBUG_PRINTLN_F("[ETH] Initializing...");
 
@@ -287,6 +308,7 @@ bool initNetwork() {
   DEBUG_PRINTLN_F("[ETH] DHCP requesting...");
 
   for (uint8_t retry = 0; retry < DHCP_MAX_RETRIES; retry++) {
+    WDT.refresh(); // 재시도 루프가 워치독(~5.59s)을 넘기지 않도록 매 회 갱신
     if (retry > 0) {
       DEBUG_PRINT_F("[ETH] DHCP retry ");
       DEBUG_PRINT(retry);
@@ -294,8 +316,10 @@ bool initNetwork() {
       delay(DHCP_RETRY_DELAY_MS);
     }
 
-    if (Ethernet.begin(g_config.mac, 5000) != 0) {
+    if (Ethernet.begin(g_config.mac, DHCP_TIMEOUT_MS, DHCP_RESPONSE_TIMEOUT_MS) !=
+        0) {
       // DHCP 성공
+      applyW5500Timeouts();
       DEBUG_PRINT_F("[ETH] DHCP OK! IP: ");
       DEBUG_PRINTLN(Ethernet.localIP());
 
@@ -341,6 +365,7 @@ bool initNetwork() {
   IPAddress subnet(255, 255, 255, 0);
 
   Ethernet.begin(g_config.mac, ip, gateway, gateway, subnet);
+  applyW5500Timeouts();
 
   DEBUG_PRINT_F("[ETH] Static IP: ");
   DEBUG_PRINTLN(Ethernet.localIP());
@@ -1012,6 +1037,15 @@ void setup() {
 
   initNetwork();
 
+  // 하드웨어 워치독 시작: loop가 ~5s 이상 멈추면 MCU 자동 reset.
+  // begin(ms)는 PCLKB 24MHz 기준 ~5.59s가 최대(realized). 초기 부팅 DHCP는
+  // 감시 대상에서 제외하려고 initNetwork() 뒤에 시작한다.
+  if (WDT.begin(5000)) {
+    DEBUG_PRINTLN_F("[WDT] Started (~5.59s)");
+  } else {
+    DEBUG_PRINTLN_F("[WDT] FAILED to start");
+  }
+
 #if DEBUG_SERIAL_MONITOR == 1
   printStatus();
   Serial.println(F("Type 'help' for commands.\n"));
@@ -1020,6 +1054,8 @@ void setup() {
 }
 
 void loop() {
+  WDT.refresh(); // 하드웨어 워치독 갱신 (loop가 ~5.59s 이상 멈추면 reset)
+
 #if DEBUG_SERIAL_MONITOR == 1
   // 디버그 모드: 콘솔 + 통계 출력
   processConsole();
