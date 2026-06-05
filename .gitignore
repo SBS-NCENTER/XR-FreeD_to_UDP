@@ -7,8 +7,14 @@
 .vscode/launch.json
 .vscode/ipch
 
-# Claude Code local settings (machine-specific permissions)
-.claude/settings.local.json
+# AI-session internal docs (kept local only, never share via git)
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+NEXT_SESSION.md
+doc/
+PROGRESS/
+PROGRESS.md
 
 # macOS
 .DS_Store
