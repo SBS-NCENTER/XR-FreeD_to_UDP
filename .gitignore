@@ -21,3 +21,7 @@ PROGRESS.md
 
 # Manual backup files
 *.backup
+
+# Python bytecode (tools/)
+__pycache__/
+*.pyc
