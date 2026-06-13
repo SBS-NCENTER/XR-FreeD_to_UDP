@@ -174,8 +174,11 @@ function Send-Http($client, [string]$status, [string]$ctype, [byte[]]$body) {
 }
 
 function Get-StatusJson {
-  # clamp: lastSeen=MinValue(첫 패킷 전)이면 Int32 범위 초과로 throw됨
-  $age = [int][math]::Min(999999, ((Get-Date) - $S.lastSeen).TotalSeconds)
+  # clamp: lastSeen=MinValue(첫 패킷 전)이면 경과초가 ~639억이 됨.
+  # 첫 인자는 반드시 double(999999.0)여야 함 — int(999999)면 PS 5.1이
+  # Min(int,int) 오버로드를 골라 거대 double을 Int32로 변환하다 throw하고,
+  # /api/status가 빈 응답으로 끊겨 대시보드가 빈 화면이 된다. (.0 제거 금지)
+  $age = [int][math]::Min(999999.0, ((Get-Date) - $S.lastSeen).TotalSeconds)
   $tl = @()
   foreach ($t in $S.targets) {
     $d = $S.diagState["$($t.n)"]
