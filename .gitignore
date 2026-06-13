@@ -22,6 +22,10 @@ PROGRESS.md
 # Manual backup files
 *.backup
 
+# 표준 규약: 런타임 데이터 / pidfile (절대 커밋하지 않음)
+data/
+*.pid
+
 # Python bytecode (tools/)
 __pycache__/
 *.pyc

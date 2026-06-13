@@ -1,0 +1,10 @@
+[[service]]
+name = "xr-freed-to-udp"
+type = "web"
+description = "XR FreeD→UDP 장비 브릿지 대시보드 (PowerShell HTTP)"
+command = "powershell -ExecutionPolicy Bypass -File tools/xrfd_dashboard.ps1 -Port 10000"
+host = "0.0.0.0"           # LAN 브라우저 접근 필요(방화벽으로 제어)
+port = 10000
+health_path = "/health"
+pidfile = "data/xrfd.pid"
+autostart_service = "XrFreeDToUdp"

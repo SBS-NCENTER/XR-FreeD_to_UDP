@@ -20,6 +20,22 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
+$script:StartTime = Get-Date
+# --- 표준 규약: pidfile(메타데이터) 기록 ---
+$RepoRoot = Split-Path -Parent $PSScriptRoot              # tools/ 의 상위 = 프로젝트 루트
+$DataDir  = Join-Path $RepoRoot 'data'
+$script:PidFile = Join-Path $DataDir 'xrfd.pid'
+New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+$pidMeta = [ordered]@{
+  pid        = $PID
+  command    = "powershell -File tools/xrfd_dashboard.ps1 -Port $Port"
+  started_at = (Get-Date).ToString('o')
+} | ConvertTo-Json -Compress
+Set-Content -Path $script:PidFile -Value $pidMeta -Encoding UTF8
+Register-EngineEvent PowerShell.Exiting -Action {
+  if (Test-Path $script:PidFile) { Remove-Item $script:PidFile -Force -ErrorAction SilentlyContinue }
+} | Out-Null
+
 # ── shared state ─────────────────────────────────────────────────────────────
 $S = @{
   deviceIp = ''
@@ -195,7 +211,21 @@ function Handle-Request($client) {
     }
     $path = $Matches[2]
 
-    if ($path -eq '/' -or $path -eq '/index.html') {
+    if ($path -eq '/health') {
+      # raw TcpListener라 HttpListener의 IsLocal이 없음 — 원격 IP가 루프백인지로 판별
+      $isLocal = $false
+      try { $isLocal = [Net.IPAddress]::IsLoopback($client.Client.RemoteEndPoint.Address) } catch { }
+      $obj = [ordered]@{ status = 'ok' }
+      if ($isLocal) {
+        $obj.pid = $PID
+        $obj.uptime_seconds = [math]::Round(((Get-Date) - $script:StartTime).TotalSeconds, 1)
+        $obj.device = $S.deviceIp
+      }
+      $json = $obj | ConvertTo-Json -Compress
+      Send-Http $client '200 OK' 'application/json' ([Text.Encoding]::UTF8.GetBytes($json))
+      return
+    }
+    elseif ($path -eq '/' -or $path -eq '/index.html') {
       Send-Http $client '200 OK' 'text/html' ([Text.Encoding]::UTF8.GetBytes($script:HTML))
     }
     elseif ($path -eq '/api/status') {
