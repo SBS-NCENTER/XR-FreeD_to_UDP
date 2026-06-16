@@ -2,6 +2,7 @@
 import json
 import os
 import queue
+import socket
 import time
 
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -79,6 +80,19 @@ def _write_pidfile():
         % (os.getpid(), time.strftime("%Y-%m-%dT%H:%M:%S")))
 
 
+def _lan_ips():
+    """Best-effort list of this host's non-loopback IPv4 addresses."""
+    ips = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith("127.") and not ip.startswith("169.254."):
+                ips.add(ip)
+    except OSError:
+        pass
+    return sorted(ips)
+
+
 def main():
     from .state import State
     from .udp_bridge import UdpBridge
@@ -89,9 +103,14 @@ def main():
     state.add_log("info", "dashboard started")
     _write_pidfile()
     app = create_app(state, bridge)
-    print("XRFD dashboard on http://0.0.0.0:%d (waitress)" % config.WEB_PORT)
+    port = config.WEB_PORT
+    # 0.0.0.0 = bind on all interfaces; browse via one of these reachable URLs:
+    print("XRFD dashboard running (waitress, listening on 0.0.0.0:%d):" % port, flush=True)
+    print("  local:   http://localhost:%d" % port, flush=True)
+    for ip in _lan_ips():
+        print("  LAN:     http://%s:%d" % (ip, port), flush=True)
     try:
-        serve(app, host="0.0.0.0", port=config.WEB_PORT, threads=8)
+        serve(app, host="0.0.0.0", port=port, threads=8)
     finally:
         bridge.stop()
         config.PIDFILE.unlink(missing_ok=True)
