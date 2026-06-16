@@ -44,3 +44,22 @@ def test_log_capped_at_maxlen():
     for i in range(200):
         st.add_log("info", "msg %d" % i)
     assert len(st._log) <= 80
+
+
+def test_subscribe_receives_published_snapshot():
+    st = State()
+    q = st.subscribe()
+    st.publish()
+    item = q.get(timeout=1)
+    assert item["deviceIp"] == ""      # a snapshot dict
+    st.unsubscribe(q)
+    assert q not in st._subscribers
+
+
+def test_update_from_diag_publishes_to_subscribers():
+    st = State()
+    q = st.subscribe()
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=%s rx=0 dhcp=0/0 rtr=Y" % DEV), DEV)
+    st.publish()
+    assert q.get(timeout=1)["deviceIp"] == DEV

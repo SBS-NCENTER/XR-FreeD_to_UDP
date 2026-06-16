@@ -26,6 +26,7 @@ class State:
         self._prev_ms = -1
         self._prev_time = None
         self._ignored_ips = set()
+        self._subscribers = set()
 
     def add_log(self, kind, msg):
         with self._lock:
@@ -103,3 +104,24 @@ class State:
                 "targets": tl,
                 "log": list(self._log)[:40],
             }
+
+    def subscribe(self):
+        import queue
+        q = queue.Queue(maxsize=10)
+        with self._lock:
+            self._subscribers.add(q)
+        return q
+
+    def unsubscribe(self, q):
+        with self._lock:
+            self._subscribers.discard(q)
+
+    def publish(self):
+        snap = self.snapshot()
+        with self._lock:
+            subs = list(self._subscribers)
+        for q in subs:
+            try:
+                q.put_nowait(snap)
+            except Exception:
+                pass   # slow/full consumer: drop this update, never block the bridge
