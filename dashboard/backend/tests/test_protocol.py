@@ -33,3 +33,20 @@ def test_parse_diag_conflict():
 def test_parse_diag_garbage_returns_none():
     assert protocol.parse_diag("hello world") is None
     assert protocol.parse_diag("XRFD up=") is None
+
+
+def test_parse_targets():
+    reply = ("t0 on 10.10.204.184:50001\n"
+             "t1 off 10.10.204.175:50001\n"
+             "garbage line\n")
+    out = protocol.parse_targets(reply)
+    assert out == [
+        {"n": 0, "on": True,  "ip": "10.10.204.184", "port": 50001},
+        {"n": 1, "on": False, "ip": "10.10.204.175", "port": 50001},
+    ]
+
+
+def test_build_command():
+    assert protocol.build_command("target", 1, "on") == "target 1 on"
+    assert protocol.build_command("target", 2, "set", "1.2.3.4", 50001) == "target 2 set 1.2.3.4 50001"
+    assert protocol.build_command("reboot") == "reboot"

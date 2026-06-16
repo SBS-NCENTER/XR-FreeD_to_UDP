@@ -32,3 +32,23 @@ def parse_diag(line):
         "conflict": " CONFLICT" in line,
         "targets": targets,
     }
+
+
+def parse_targets(reply):
+    """Parse a 'targets' command reply into a list of target dicts."""
+    out = []
+    for line in reply.split("\n"):
+        m = _TARGETS_LINE.match(line)
+        if m:
+            out.append({
+                "n": int(m.group(1)),
+                "on": m.group(2) == "on",
+                "ip": m.group(3),
+                "port": int(m.group(4)),
+            })
+    return out
+
+
+def build_command(*parts):
+    """Join command parts into the wire string, e.g. ('target',1,'on') -> 'target 1 on'."""
+    return " ".join(str(p) for p in parts)
