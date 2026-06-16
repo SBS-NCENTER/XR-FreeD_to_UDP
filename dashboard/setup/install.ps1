@@ -18,15 +18,6 @@ npm ci
 npm run build
 Pop-Location
 
-function Ensure-Rule($name, $proto, $port) {
-  if (-not (Get-NetFirewallRule -DisplayName $name -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -DisplayName $name -Direction Inbound -Protocol $proto -LocalPort $port -Action Allow | Out-Null
-    Write-Host "added firewall rule: $name"
-  } else {
-    Write-Host "firewall rule exists: $name"
-  }
-}
-Ensure-Rule 'XRFD diag (UDP 50999)' UDP 50999
-Ensure-Rule 'XRFD dashboard (TCP 10000)' TCP 10000
+& "$PSScriptRoot\firewall.ps1"
 
 Write-Host "Setup complete. Start with: setup\run.ps1"
