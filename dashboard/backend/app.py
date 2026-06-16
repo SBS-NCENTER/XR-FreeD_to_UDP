@@ -1,8 +1,10 @@
 """Flask app factory + waitress entrypoint for the XRFD dashboard."""
+import json
 import os
+import queue
 import time
 
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 
 from . import config
 
@@ -36,5 +38,23 @@ def create_app(state, bridge):
         if cmd.startswith("target "):
             bridge._maybe_refresh_targets()
         return jsonify({"ok": reply is not None, "reply": reply})
+
+    @app.get("/events")
+    def events():
+        def stream():
+            q = state.subscribe()
+            try:
+                # immediate snapshot so a fresh client paints at once
+                yield "data: %s\n\n" % json.dumps(state.snapshot())
+                while True:
+                    try:
+                        snap = q.get(timeout=15)
+                        yield "data: %s\n\n" % json.dumps(snap)
+                    except queue.Empty:
+                        yield ": keepalive\n\n"   # comment frame keeps proxies open
+            finally:
+                state.unsubscribe(q)
+        return Response(stream(), mimetype="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     return app

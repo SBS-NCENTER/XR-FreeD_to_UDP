@@ -34,3 +34,15 @@ def test_cmd_no_reply_reports_error(app_and_state):
 def test_cmd_missing_field_is_400(app_and_state):
     app, _, _ = app_and_state
     assert app.test_client().post("/api/cmd", json={}).status_code == 400
+
+
+def test_events_streams_initial_snapshot(app_and_state):
+    app, st, _ = app_and_state
+    c = app.test_client()
+    r = c.get("/events", headers={"Accept": "text/event-stream"}, buffered=False)
+    assert r.status_code == 200
+    assert r.headers["Content-Type"].startswith("text/event-stream")
+    chunk = next(iter(r.response))
+    text = chunk.decode() if isinstance(chunk, bytes) else chunk
+    assert text.startswith("data: ")
+    assert '"deviceIp"' in text
