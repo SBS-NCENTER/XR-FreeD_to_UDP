@@ -1,0 +1,101 @@
+"""Flask app factory + waitress entrypoint for the XRFD dashboard."""
+import json
+import os
+import queue
+import time
+
+from flask import Flask, Response, jsonify, request, send_from_directory
+
+from . import config
+
+
+def create_app(state, bridge):
+    app = Flask(__name__, static_folder=None)
+    start_time = time.time()
+
+    @app.get("/api/status")
+    def api_status():
+        return jsonify(state.snapshot())
+
+    @app.get("/health")
+    def health():
+        is_local = request.remote_addr in ("127.0.0.1", "::1")
+        obj = {"status": "ok"}
+        if is_local:
+            obj["pid"] = os.getpid()
+            obj["uptime_seconds"] = round(time.time() - start_time, 1)
+            obj["device"] = state.device_ip
+        return jsonify(obj)
+
+    @app.post("/api/cmd")
+    def api_cmd():
+        data = request.get_json(silent=True) or {}
+        cmd = data.get("cmd")
+        if not cmd:
+            return jsonify({"error": "missing 'cmd'"}), 400
+        reply = bridge.send_command(cmd)
+        state.add_log("cmd", "%s  ->  %s" % (cmd, reply if reply else "(no reply)"))
+        if cmd.startswith("target "):
+            bridge._maybe_refresh_targets()
+        return jsonify({"ok": reply is not None, "reply": reply})
+
+    @app.get("/events")
+    def events():
+        def stream():
+            q = state.subscribe()
+            try:
+                # immediate snapshot so a fresh client paints at once
+                yield "data: %s\n\n" % json.dumps(state.snapshot())
+                while True:
+                    try:
+                        snap = q.get(timeout=15)
+                        yield "data: %s\n\n" % json.dumps(snap)
+                    except queue.Empty:
+                        yield ": keepalive\n\n"   # comment frame keeps proxies open
+            finally:
+                state.unsubscribe(q)
+        return Response(stream(), mimetype="text/event-stream",
+                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    @app.get("/")
+    def index():
+        if not (config.FRONTEND_DIST / "index.html").exists():
+            return ("frontend not built — run: cd dashboard/frontend && npm run build", 503)
+        return send_from_directory(config.FRONTEND_DIST, "index.html")
+
+    @app.get("/<path:path>")
+    def assets(path):
+        if (config.FRONTEND_DIST / path).exists():
+            return send_from_directory(config.FRONTEND_DIST, path)
+        return ("not found", 404)
+
+    return app
+
+
+def _write_pidfile():
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    config.PIDFILE.write_text(
+        '{"pid": %d, "command": "python -m backend.app", "started_at": "%s"}'
+        % (os.getpid(), time.strftime("%Y-%m-%dT%H:%M:%S")))
+
+
+def main():
+    from .state import State
+    from .udp_bridge import UdpBridge
+    from waitress import serve
+    state = State()
+    bridge = UdpBridge(state)
+    bridge.start()
+    state.add_log("info", "dashboard started")
+    _write_pidfile()
+    app = create_app(state, bridge)
+    print("XRFD dashboard on http://0.0.0.0:%d (waitress)" % config.WEB_PORT)
+    try:
+        serve(app, host="0.0.0.0", port=config.WEB_PORT, threads=8)
+    finally:
+        bridge.stop()
+        config.PIDFILE.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    main()
