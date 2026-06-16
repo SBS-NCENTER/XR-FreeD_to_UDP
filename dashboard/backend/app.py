@@ -25,4 +25,16 @@ def create_app(state, bridge):
             obj["device"] = state.device_ip
         return jsonify(obj)
 
+    @app.post("/api/cmd")
+    def api_cmd():
+        data = request.get_json(silent=True) or {}
+        cmd = data.get("cmd")
+        if not cmd:
+            return jsonify({"error": "missing 'cmd'"}), 400
+        reply = bridge.send_command(cmd)
+        state.add_log("cmd", "%s  ->  %s" % (cmd, reply if reply else "(no reply)"))
+        if cmd.startswith("target "):
+            bridge._maybe_refresh_targets()
+        return jsonify({"ok": reply is not None, "reply": reply})
+
     return app
