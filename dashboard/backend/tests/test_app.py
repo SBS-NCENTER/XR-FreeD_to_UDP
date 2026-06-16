@@ -46,3 +46,11 @@ def test_events_streams_initial_snapshot(app_and_state):
     text = chunk.decode() if isinstance(chunk, bytes) else chunk
     assert text.startswith("data: ")
     assert '"deviceIp"' in text
+
+
+def test_index_served_when_dist_missing_returns_helpful_503(app_and_state, monkeypatch):
+    from backend import config
+    monkeypatch.setattr(config, "FRONTEND_DIST", config.FRONTEND_DIST / "nonexistent")
+    r = app_and_state[0].test_client().get("/")
+    assert r.status_code == 503
+    assert b"npm run build" in r.data

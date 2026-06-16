@@ -4,7 +4,7 @@ import os
 import queue
 import time
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, send_from_directory
 
 from . import config
 
@@ -57,4 +57,45 @@ def create_app(state, bridge):
         return Response(stream(), mimetype="text/event-stream",
                         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+    @app.get("/")
+    def index():
+        if not (config.FRONTEND_DIST / "index.html").exists():
+            return ("frontend not built — run: cd dashboard/frontend && npm run build", 503)
+        return send_from_directory(config.FRONTEND_DIST, "index.html")
+
+    @app.get("/<path:path>")
+    def assets(path):
+        if (config.FRONTEND_DIST / path).exists():
+            return send_from_directory(config.FRONTEND_DIST, path)
+        return ("not found", 404)
+
     return app
+
+
+def _write_pidfile():
+    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    config.PIDFILE.write_text(
+        '{"pid": %d, "command": "python -m backend.app", "started_at": "%s"}'
+        % (os.getpid(), time.strftime("%Y-%m-%dT%H:%M:%S")))
+
+
+def main():
+    from .state import State
+    from .udp_bridge import UdpBridge
+    from waitress import serve
+    state = State()
+    bridge = UdpBridge(state)
+    bridge.start()
+    state.add_log("info", "dashboard started")
+    _write_pidfile()
+    app = create_app(state, bridge)
+    print("XRFD dashboard on http://0.0.0.0:%d (waitress)" % config.WEB_PORT)
+    try:
+        serve(app, host="0.0.0.0", port=config.WEB_PORT, threads=8)
+    finally:
+        bridge.stop()
+        config.PIDFILE.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    main()
