@@ -1,0 +1,8 @@
+[[service]]
+name = "xrfd-dashboard"
+description = "XR-FreeD UDP->web dashboard (Flask/waitress + Svelte)"
+cwd = "dashboard"
+command = "powershell -NoProfile -ExecutionPolicy Bypass -File setup/run.ps1"
+port = 10000
+health = "/health"
+pidfile = "data/xrfd.pid"
