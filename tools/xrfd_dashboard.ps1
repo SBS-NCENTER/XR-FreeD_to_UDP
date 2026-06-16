@@ -1,5 +1,9 @@
 # XRFD Dashboard - web GUI bridge (Windows PowerShell, no install required)
 #
+# NOTE: This single-file PowerShell dashboard is now a lightweight FALLBACK.
+# The primary dashboard is the Python/Svelte service in ../dashboard/ (see
+# dashboard/README.md). Keep this for quick per-PC use without install.
+#
 # Runs a tiny HTTP server on this PC and bridges it to the Arduino:
 #   - caches the device's diag broadcast (UDP 50999)  -> live status
 #   - relays control commands to the device (UDP 50998)
