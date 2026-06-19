@@ -7,7 +7,8 @@ import time
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
-from . import config
+from . import config, lifecycle
+from . import __version__
 
 
 def create_app(state, bridge):
@@ -102,6 +103,9 @@ def main():
     bridge.start()
     state.add_log("info", "dashboard started")
     _write_pidfile()
+    _log_dir = config.REPO_ROOT / "log"
+    lifecycle.append(_log_dir, "xr-freed-to-udp", "STARTED",
+                     "version=%s pid=%d" % (__version__, os.getpid()))
     app = create_app(state, bridge)
     port = config.WEB_PORT
     # 0.0.0.0 = bind on all interfaces; browse via one of these reachable URLs:
@@ -114,6 +118,8 @@ def main():
     finally:
         bridge.stop()
         config.PIDFILE.unlink(missing_ok=True)
+        lifecycle.append(_log_dir, "xr-freed-to-udp", "STOPPED",
+                         "pid=%d" % os.getpid())
 
 
 if __name__ == "__main__":

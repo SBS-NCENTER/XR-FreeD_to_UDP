@@ -25,6 +25,7 @@ PROGRESS.md
 # 표준 규약: 런타임 데이터 / pidfile (절대 커밋하지 않음)
 data/
 *.pid
+log/
 
 # Python bytecode (tools/)
 __pycache__/
