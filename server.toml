@@ -2,9 +2,9 @@
 name = "xr-freed-to-udp"
 type = "web"
 description = "XR FreeD→UDP 장비 브릿지 대시보드 (Python/Flask+waitress + Svelte/Vite)"
-command = "powershell -NoProfile -ExecutionPolicy Bypass -File dashboard/setup/run.ps1"
+command = "bash dashboard/setup/run.sh"
 host = "0.0.0.0"           # LAN 브라우저 접근 필요(방화벽으로 제어)
 port = 10000
 health_path = "/health"
 pidfile = "data/xrfd.pid"
-autostart_service = "XrFreeDToUdp"
+autostart_service = "xr-freed-to-udp"

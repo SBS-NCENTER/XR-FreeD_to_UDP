@@ -1,0 +1,22 @@
+# dashboard/setup/xr-freed-to-udp.service
+# systemd unit for the XR FreeD->UDP dashboard (Flask+waitress + Svelte).
+#
+# Deploy:
+#   1) edit WorkingDirectory below to the repo's deploy path
+#   2) sudo cp dashboard/setup/xr-freed-to-udp.service /etc/systemd/system/
+#   3) sudo systemctl daemon-reload && sudo systemctl enable --now xr-freed-to-udp
+# ExecStart calls run.sh (the SSOT) so launch logic lives in exactly one place.
+[Unit]
+Description=XR FreeD->UDP dashboard (Flask+waitress + Svelte)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/xr-freed-to-udp           # <-- adjust to your deploy path
+ExecStart=/usr/bin/env bash dashboard/setup/run.sh
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
