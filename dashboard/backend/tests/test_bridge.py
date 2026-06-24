@@ -70,3 +70,17 @@ def test_send_command_roundtrip(monkeypatch):
 def test_send_command_no_device_returns_none():
     st = State()           # device_ip == ""
     assert UdpBridge(st).send_command("status") is None
+
+
+def test_bind_sets_reuseport(monkeypatch):
+    """DIAG socket must set SO_REUSEPORT so the CLI tools (xrfd_ctl/xrfd_monitor)
+    can coexist on the diag port while the dashboard is running."""
+    if not hasattr(socket, "SO_REUSEPORT"):
+        import pytest
+        pytest.skip("SO_REUSEPORT not available on this platform")
+    monkeypatch.setattr(config, "DIAG_PORT", 55996)
+    s = UdpBridge(State())._bind()
+    try:
+        assert s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) == 1
+    finally:
+        s.close()

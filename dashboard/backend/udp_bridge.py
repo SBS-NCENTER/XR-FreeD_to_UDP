@@ -16,6 +16,11 @@ class UdpBridge(threading.Thread):
     def _bind(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if hasattr(socket, "SO_REUSEPORT"):   # coexist with xrfd_ctl/xrfd_monitor on DIAG_PORT
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except OSError:
+                pass
         s.bind(("0.0.0.0", config.DIAG_PORT))
         s.settimeout(0.5)
         return s

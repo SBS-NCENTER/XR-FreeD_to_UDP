@@ -2,7 +2,9 @@
 import json
 import os
 import queue
+import signal
 import socket
+import sys
 import time
 
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -113,6 +115,10 @@ def main():
     print("  local:   http://localhost:%d" % port, flush=True)
     for ip in _lan_ips():
         print("  LAN:     http://%s:%d" % (ip, port), flush=True)
+    # systemd `stop` sends SIGTERM; Python's default would kill the process outright
+    # and skip the finally-block cleanup. Raising SystemExit lets waitress unwind
+    # cleanly (it reraises SystemExit), so the STOPPED log + pidfile removal run.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
         serve(app, host="0.0.0.0", port=port, threads=8)
     finally:
