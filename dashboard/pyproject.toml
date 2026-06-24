@@ -1,0 +1,23 @@
+[project]
+name = "xr-freed-dashboard"
+version = "0.1.0"
+description = "XR FreeD→UDP 장비 브릿지 대시보드 backend (Flask + waitress + UDP bridge)"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "flask>=3.0",
+    "waitress>=3.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]

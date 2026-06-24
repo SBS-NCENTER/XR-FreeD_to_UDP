@@ -18,12 +18,11 @@ Primary target is **Linux** (`server-manager` supervises it via `server.toml`); 
 cd dashboard
 bash setup/install.sh
 ```
-Creates a venv, installs backend deps, builds the frontend, and — only if `ufw` is
-active — adds inbound rules for UDP 50999 / TCP 10000.
+Installs backend deps via `uv` (which also provisions Python 3.14 per `.python-version`),
+builds the frontend, and — only if `ufw` is active — adds inbound rules for UDP 50999 / TCP 10000.
 
 Prerequisites:
-- `python3` **and `python3-venv`** — on Debian: `sudo apt install python3-venv`
-  (Debian splits `venv`/`ensurepip` into a separate package; without it `python -m venv` fails)
+- `uv` — `curl -LsSf https://astral.sh/uv/install.sh | sh` (manages Python 3.14 itself)
 - Node.js — **build time only** (e.g. via fnm/nvm); the runtime needs only Python
 
 ### Windows (fallback, as Administrator)
@@ -35,7 +34,8 @@ Administrator is required for the firewall rules — without them the diag broad
 blocked on the Public profile and the dashboard shows no device. (On Linux a default
 server has no firewall, so the rule is usually unnecessary — `firewall.sh` is a no-op then.)
 
-Prerequisites: Python 3.x and Node.js on PATH.
+Prerequisites: `uv` and Node.js on PATH (uv manages Python 3.14 itself):
+- `uv` — `powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"` (or `winget install astral-sh.uv`)
 
 ## Run
 
@@ -64,7 +64,7 @@ supervise start/stop/restart and boot autostart.
 
 ```
 # backend tests
-cd dashboard && .venv/bin/python -m pytest backend/tests -v      # Windows: .venv\Scripts\python
+cd dashboard && uv run pytest backend/tests -v
 # frontend dev server (proxies /api and /events to the running backend on :10000)
 cd dashboard/frontend && npm run dev
 ```
