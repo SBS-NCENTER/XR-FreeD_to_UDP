@@ -13,7 +13,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/xr-freed-to-udp           # <-- adjust to your deploy path
+# adjust to your deploy path — systemd reads the whole line value, so NO inline '#' comments here
+WorkingDirectory=/opt/xr-freed-to-udp
 ExecStart=/usr/bin/env bash dashboard/setup/run.sh
 Restart=on-failure
 RestartSec=3
