@@ -11,6 +11,7 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 
 from . import config, lifecycle
 from . import __version__
+from .access_log import AccessLog
 
 
 def create_app(state, bridge):
@@ -120,7 +121,7 @@ def main():
     # cleanly (it reraises SystemExit), so the STOPPED log + pidfile removal run.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     try:
-        serve(app, host="0.0.0.0", port=port, threads=8)
+        serve(AccessLog(app), host="0.0.0.0", port=port, threads=8)
     finally:
         bridge.stop()
         config.PIDFILE.unlink(missing_ok=True)
