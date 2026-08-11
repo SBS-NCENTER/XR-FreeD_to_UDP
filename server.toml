@@ -1,3 +1,8 @@
+[hooks]
+# server-manager의 U(업데이트)가 pull 직후 호출하는 재빌드 스텝.
+# uv sync(백엔드) + npm ci && npm run build(프론트엔드). 멱등하다.
+post_install = "bash dashboard/setup/install.sh"
+
 [[service]]
 name = "xr-freed-to-udp"
 type = "web"
