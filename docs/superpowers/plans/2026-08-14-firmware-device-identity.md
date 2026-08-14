@@ -335,7 +335,15 @@ void resolveMac() {
 - [ ] **Step 7: g_config.mac 잔여 참조가 없는지 확인한다**
 
 Run: `grep -n "g_config\.mac" src/main.cpp`
-Expected: `resolveMac()` 안의 `memcmp`/`memcpy` 두 줄과, `set mac` 명령 핸들러(`src/main.cpp:1370` 부근)의 `parseMAC(value, g_config.mac)` — **총 3곳만** 남는다. `Ethernet.begin`이나 `printStatus`에는 하나도 남으면 안 된다.
+Expected: **코드 5곳** (+ 주석 1곳). 전부 의도된 것이다:
+1. `resolveMac()`의 `memcmp` — 미설정 여부 판정
+2. `resolveMac()`의 `memcpy` — EEPROM에 명시 MAC이 있을 때 복사
+3. `set mac` 핸들러의 `parseMAC(value, g_config.mac)` — 입력 파싱
+4·5. `set mac` 핸들러의 확인 출력 루프 2줄 (`< 0x10` 비교와 `print(..., HEX)`)
+
+**4·5는 그대로 둔다.** 이 시점에 운영자가 확인하려는 것은 "방금 친 값이 제대로 파싱됐는가"이고, `g_effectiveMac`은 아직 이전 부팅 때 확정된 값이라 무관하다 — 그걸 출력하면 `(reboot to apply)` 안내와 모순되는 엉뚱한 값을 보여주게 된다.
+
+`Ethernet.begin`이나 MAC 출력 함수(`printNetworkStatus()`)에는 하나도 남으면 안 된다.
 
 - [ ] **Step 8: 빌드하고 native 테스트가 여전히 통과하는지 확인한다**
 

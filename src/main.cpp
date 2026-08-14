@@ -38,6 +38,7 @@
 
 #include <Arduino.h>
 #include <EEPROM.h>
+#include "mac_from_uid.h"
 #include <Ethernet.h>
 #include <EthernetUdp.h>
 #include <SPI.h>
@@ -132,7 +133,10 @@ constexpr int EEPROM_ADDR = 0;
 // 기본 설정값
 AppConfig g_config = {
     CONFIG_MAGIC,
-    {0x02, 0xF0, 0xED, 0xCA, 0xFE, 0x01}, // MAC - 고유값 (Locally Administered)
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, // MAC - all-zero = 미설정: MCU unique
+                                          // ID에서 유도한다 (resolveMac 참고).
+                                          // `set mac`으로 명시 지정한 경우에만
+                                          // EEPROM 값이 이 유도를 덮어쓴다.
     {10, 10, 204, 123},                   // Local IP (최후 fallback — 실제로는
                                           // lastDhcpIP가 우선한다)
     {
@@ -407,6 +411,27 @@ void saveConfig() {
   g_config.magic = CONFIG_MAGIC;
   EEPROM.put(EEPROM_ADDR, g_config);
   DEBUG_PRINTLN_F("[CONFIG] Saved to EEPROM");
+}
+
+// 실제로 wire에 나가는 MAC. loadConfig() 직후 딱 한 번 확정한다.
+//
+// g_config.mac이 all-zero(미설정)면 MCU의 factory unique ID에서 유도한다 —
+// 같은 firmware를 여러 보드에 올려도 MAC이 자동으로 달라지므로, 장비 교체
+// 중 신·구 장비가 잠시 같이 켜져 있어도 MAC이 겹치지 않는다. unique ID는
+// 불변이라 firmware를 다시 올려도 같은 MAC이 나온다.
+//
+// EEPROM에 명시 MAC이 있으면(과거 장비, 혹은 `set mac`) 그쪽이 이긴다.
+uint8_t g_effectiveMac[6];
+
+void resolveMac() {
+  static const uint8_t kZero[6] = {0, 0, 0, 0, 0, 0};
+  if (memcmp(g_config.mac, kZero, 6) != 0) {
+    memcpy(g_effectiveMac, g_config.mac, 6);
+    return;
+  }
+  const bsp_unique_id_t *uid = R_BSP_UniqueIdGet();
+  deriveMacFromUid(uid->unique_id_bytes, sizeof(uid->unique_id_bytes),
+                   g_effectiveMac);
 }
 
 // ============================================================================
@@ -774,7 +799,7 @@ void applyStaticFallback() {
   IPAddress gateway(a[0], a[1], a[2], 1);
   IPAddress subnet(255, 255, 255, 0);
 
-  Ethernet.begin(g_config.mac, ip, gateway, gateway, subnet);
+  Ethernet.begin(g_effectiveMac, ip, gateway, gateway, subnet);
   g_rtrPatchOk = applyW5500Timeouts();
   g_staticFallback = true; // maintain() 호출 금지 (storm 방지)
   g_lastDhcpRetryMs = millis();
@@ -815,7 +840,7 @@ bool initNetwork() {
       delay(DHCP_RETRY_DELAY_MS);
     }
 
-    if (Ethernet.begin(g_config.mac, DHCP_TIMEOUT_MS, DHCP_RESPONSE_TIMEOUT_MS) !=
+    if (Ethernet.begin(g_effectiveMac, DHCP_TIMEOUT_MS, DHCP_RESPONSE_TIMEOUT_MS) !=
         0) {
       // DHCP 성공
       g_rtrPatchOk = applyW5500Timeouts();
@@ -877,7 +902,7 @@ bool initNetwork() {
 bool tryDhcpUpgrade() {
   WDT.refresh();
   DEBUG_PRINTLN_F("[ETH] Fallback: retrying DHCP...");
-  if (Ethernet.begin(g_config.mac, DHCP_TIMEOUT_MS, DHCP_RESPONSE_TIMEOUT_MS) !=
+  if (Ethernet.begin(g_effectiveMac, DHCP_TIMEOUT_MS, DHCP_RESPONSE_TIMEOUT_MS) !=
       0) {
     g_rtrPatchOk = applyW5500Timeouts();
     g_staticFallback = false;
@@ -977,9 +1002,9 @@ void printNetworkStatus() {
   Serial.println(Ethernet.localIP());
   Serial.print(F("MAC: "));
   for (uint8_t i = 0; i < 6; i++) {
-    if (g_config.mac[i] < 0x10)
+    if (g_effectiveMac[i] < 0x10)
       Serial.print('0');
-    Serial.print(g_config.mac[i], HEX);
+    Serial.print(g_effectiveMac[i], HEX);
     if (i < 5)
       Serial.print(':');
   }
@@ -1120,7 +1145,7 @@ void printHelp() {
   Serial.println(F("set port <n>        - Set target 0 port"));
   Serial.println(F("--- Network ---"));
   Serial.println(F("set local <a.b.c.d> - Set fallback static IP"));
-  Serial.println(F("set mac <hex>       - Set MAC (e.g., 02F0EDCAFE01)"));
+  Serial.println(F("set mac <hex>       - Set MAC (000000000000 = derive from MCU ID)"));
   Serial.println(F("--- Serial ---"));
   Serial.println(F("set parity n|o|e    - Set parity (none/odd/even)"));
   Serial.println(F("--- Remap ---"));
@@ -1601,6 +1626,7 @@ void setup() {
   DEBUG_PRINTLN_F("=====================================\n");
 
   loadConfig();
+  resolveMac(); // g_effectiveMac 확정 — initNetwork()보다 먼저여야 한다
 
   Serial1.begin(FreeD::BAUD_RATE, SERIAL_8O1);
   DEBUG_PRINTLN_F("[UART] Serial1: 38400, 8O1");
