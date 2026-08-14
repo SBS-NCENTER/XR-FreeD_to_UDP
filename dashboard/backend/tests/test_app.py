@@ -54,3 +54,43 @@ def test_index_served_when_dist_missing_returns_helpful_503(app_and_state, monke
     r = app_and_state[0].test_client().get("/")
     assert r.status_code == 503
     assert b"npm run build" in r.data
+
+
+def test_select_device_switches_selection(app_and_state):
+    app, st, _ = app_and_state
+    from backend import protocol
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.124")
+    c = app.test_client()
+    r = c.post("/api/device", json={"ip": "10.10.204.124"})
+    assert r.status_code == 200
+    assert r.get_json()["selected"] == "10.10.204.124"
+    assert c.get("/api/status").get_json()["deviceIp"] == "10.10.204.124"
+
+
+def test_select_device_rejects_unknown(app_and_state):
+    app, st, _ = app_and_state
+    from backend import protocol
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
+    r = app.test_client().post("/api/device", json={"ip": "10.10.204.199"})
+    assert r.status_code == 404
+    assert app.test_client().get("/api/status").get_json()["deviceIp"] == "10.10.204.123"
+
+
+def test_select_device_requires_ip(app_and_state):
+    app, _, _ = app_and_state
+    r = app.test_client().post("/api/device", json={})
+    assert r.status_code == 400
+
+
+def test_status_lists_discovered_devices(app_and_state):
+    app, st, _ = app_and_state
+    from backend import protocol
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
+    devices = app.test_client().get("/api/status").get_json()["devices"]
+    assert [d["ip"] for d in devices] == ["10.10.204.123"]
+    assert devices[0]["live"] is True

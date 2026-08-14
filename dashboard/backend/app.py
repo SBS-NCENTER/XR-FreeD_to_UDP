@@ -44,6 +44,17 @@ def create_app(state, bridge):
             bridge._maybe_refresh_targets()
         return jsonify({"ok": reply is not None, "reply": reply})
 
+    @app.post("/api/device")
+    def api_device():
+        data = request.get_json(silent=True) or {}
+        ip = data.get("ip")
+        if not ip:
+            return jsonify({"error": "missing 'ip'"}), 400
+        if not state.select_device(ip):
+            return jsonify({"error": "unknown device: %s" % ip}), 404
+        state.publish()          # push the switch to every open SSE client
+        return jsonify({"ok": True, "selected": ip})
+
     @app.get("/events")
     def events():
         def stream():
