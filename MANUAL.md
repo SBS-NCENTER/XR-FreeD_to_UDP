@@ -19,7 +19,7 @@ FreeD Serial → UDP Forwarder의 **운영자용** 안내서입니다. 모니터
 └──────────┴────────┴──────────────────────────────────────────┘
 ```
 
-장비의 IP는 DHCP로 받으며, **몰라도 됩니다** — 모든 도구가 진단 broadcast에서 자동 발견합니다.
+장비의 IP는 DHCP로 받으며, **몰라도 됩니다** — 모든 도구가 진단 broadcast에서 자동 발견합니다. MAC도 보드마다 자동으로 달라지므로(MCU unique ID에서 유도) 설정할 것이 없습니다.
 
 ---
 
@@ -132,6 +132,7 @@ echo "target 1 off" | nc -u -w1 10.10.204.123 50998
 | 명령 | 동작 (설정 변경은 EEPROM 자동 저장) |
 |------|------|
 | `status` | 진단 라인 회신 |
+| `info` | MAC/IP/fallback 후보 회신 |
 | `targets` | 타겟 목록 (활성화/IP/port) |
 | `target <0-3> on` / `off` | 활성화 / 비활성화 |
 | `target <0-3> ip <a.b.c.d>` | IP 변경 |
@@ -177,6 +178,36 @@ Target이 ON 상태면 **최대 4초 내 자동 재개**. OFF로 꺼뒀다면 Tu
 
 ### 빨간 "IP conflict DETECTED" 칩이 떴을 때
 다른 장비가 컨버터와 같은 IP를 쓰고 있다는 뜻입니다. 컨버터가 DHCP 임대를 보유 중이라면 **상대가 침입자** — 같은 IP로 수동 설정된 장비를 찾아 수정하세요. 컨버터가 fallback(임시 주소) 중이었다면 자동으로 DHCP를 재시도해 스스로 해소합니다.
+
+### 장비를 새로 투입하거나 교체할 때
+
+새 보드는 꽂기만 하면 됩니다. 세 가지가 자동으로 안전한 쪽에 맞춰져 있습니다:
+
+- **MAC**은 MCU unique ID에서 유도되어 보드마다 다릅니다 — 설정할 것이 없습니다.
+- **IP**는 DHCP로 받습니다. 지난 lease 기록이 없는 새 보드는 fallback 주소를 추측하지 않으므로, 기존 장비의 주소를 밟는 일이 없습니다.
+- **target은 비어 있습니다**(`0.0.0.0:0`, 전부 off). 즉 새 장비는 **아무 데도 송출하지 않는 상태로 켜집니다.**
+
+그래서 신·구 장비가 잠시 함께 켜져 있어도 서로 간섭하지 않습니다. 예전에는 새 보드가 전원을 넣는 순간 운영 target으로 쏘기 시작해, 수신측에 두 스트림이 섞여 tracking이 튀었습니다.
+
+새 장비가 살아 있는지 먼저 확인한 뒤(대시보드 드롭다운에서 새 IP를 골라 FreeD 수신 rate가 도는지 보세요), target을 지정하세요. 대시보드의 `Edit IP/Port` 버튼으로 주소를 넣으면 그 target이 함께 켜집니다.
+
+target을 지정하기 전에는 켤 수 없습니다 — 미설정 상태에서 켜려 하면 이렇게 거부됩니다:
+
+```
+ERR target 0 not configured (set ip/port first)
+```
+
+기존 장비의 송출을 멈추려면 그쪽 target을 끄세요:
+
+```
+target 0 off
+```
+
+새 장비의 MAC을 확인하려면 (라우터 너머에서도 됩니다):
+
+```
+echo "info" | nc -u -w1 <장비-ip> 50998
+```
 
 ### fail / skip 카운터가 계속 증가할 때
 해당 타겟 장비의 전원·케이블·IP 설정을 확인하세요. badge가 BACKOFF(주황)면 장비 도달 불가 상태입니다. 의도적으로 꺼둔 장비라면 Target을 OFF 하세요.
@@ -226,10 +257,11 @@ pio run -t upload  # USB 연결된 보드에 업로드 (~6초, 직후 자동 재
 ├─────────────────────────┼──────────────────────────────────────┤
 │ dashboard URL           │ http://<ops-pc>:10000                │
 │ device IP               │ diag line "ip=" / dashboard header   │
-│ device MAC              │ 02:F0:ED:CA:FE:01                    │
+│ device MAC              │ derived per board (see `info`)       │
 │ FreeD out               │ <target-ip>:50001 (UDP)              │
 │ control                 │ <device-ip>:50998 (UDP text)         │
 │ diagnostics             │ broadcast :50999, every 5s           │
-│ fallback IP (last resort)│ last DHCP lease, else 10.10.204.123 │
+│ fallback IP             │ last DHCP lease → `set local`        │
+│                         │ neither → no fallback (DHCP retry)   │
 └─────────────────────────┴──────────────────────────────────────┘
 ```

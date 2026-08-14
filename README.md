@@ -16,7 +16,9 @@ RS-422 시리얼로 수신한 FreeD 카메라 트래킹 데이터를 UDP 패킷�
 - **체크섬 검증** 및 자동 오류 복구
 - **Zoom/Focus 리매핑**: 렌즈 데이터 스케일링
 - **EEPROM 설정 저장**: 재부팅 후에도 설정 유지
-- **지능형 static fallback**: DHCP 실패 시 **마지막 lease IP를 재사용** (EEPROM 기억 — 하드코딩 주소보다 충돌 확률 최소화), fallback 중 5분마다 DHCP 복귀 시도, **W5500 내장 IP 충돌 감지**(IR) 시 즉시 새 lease 요청 + 진단에 `CONFLICT` 표시
+- **고유 MAC 자동 유도**: MAC을 하드코딩하지 않고 MCU의 factory unique ID에서 유도 — 같은 firmware를 여러 보드에 올려도 MAC이 겹치지 않아 장비 교체 중 신·구 장비가 함께 켜져 있어도 안전. `set mac`으로 명시 지정 가능(`000000000000`이면 유도로 복귀)
+- **지능형 static fallback**: DHCP 실패 시 **마지막 lease IP를 재사용** (EEPROM 기억). **known-good 주소가 없으면 fallback하지 않고** 30초마다 DHCP만 재시도 — 주소를 추측해 남의 장비 IP를 밟느니 대기한다. fallback 중 5분마다 DHCP 복귀 시도, **W5500 내장 IP 충돌 감지**(IR) 시 즉시 새 lease 요청 + 진단에 `CONFLICT` 표시
+- **미설정 상태로 출고**: target 기본값은 `0.0.0.0:0` / 전부 off — 새 보드는 **아무 데도 송출하지 않는 상태로 켜진다**. 대시보드에서 주소를 지정해야 시작하며, 미설정 target은 켤 수 없다(`ERR target N not configured`). 교체 중 새 장비가 운영 target에 끼어드는 것을 원천 차단
 - **DHCP maintain 통제**: library의 갱신 실패 storm(매 pass ~3초 블로킹 반복)을 1초 gate + 실패 시 60초 holdoff로 유계화
 - **하드웨어 워치독**: loop hang 시 MCU 자동 재시작 (RA4M1 WDT, ~5.59초)
 - **W5500 RTR/RCR raw register 설정**: Ethernet library의 W5500 register 주소 버그(#84)를 우회해 ARP timeout을 실제로 80ms로 단축 (readback 검증 포함)
@@ -232,6 +234,8 @@ Offset  Size  Field           Description
 
 `status` 명령은 타겟별 `TX stats [ok/fail/dropBusy/dropGate]`, W5500 RTR/RCR patch 적용 여부, DHCP renew 카운터도 표시합니다.
 
+`info` 명령은 장비의 MAC, 현재 IP, fallback 후보 주소를 한 줄로 회신합니다 (`XRFD info mac=... ip=... fb=...`). 진단 broadcast에는 MAC이 실리지 않으므로, 라우터 너머 장비의 MAC은 이 명령으로 확인합니다.
+
 ### 운영 진단 broadcast (production에서도 동작)
 
 5초마다 subnet broadcast(예: `10.10.204.255`) port `50999`로 ASCII 한 줄을 송신합니다:
@@ -273,6 +277,7 @@ echo "status"       | nc -u -w1 10.10.204.100 50998   # 상태 조회 (진단 �
 | 명령 | 동작 |
 |------|------|
 | `status` | 진단 라인 회신 |
+| `info` | MAC/IP/fallback 후보 회신 |
 | `targets` | 타겟 0~3 목록 (활성화/IP/port) |
 | `target <0-3> on\|off` | 활성화/비활성화 |
 | `target <0-3> ip <a.b.c.d>` | IP 변경 |
@@ -453,3 +458,4 @@ powershell -ExecutionPolicy Bypass -File .\tools\xrfd_ctl.ps1 "status" -Ip 10.10
 - **DHCP maintain 유계화**: Ethernet 라이브러리의 `Dhcp.cpp`는 renew/rebind 실패 후 내부 state가 풀리지 않아, 이후 `maintain()` 호출마다 ~3초 블로킹 DISCOVER를 반복합니다(storm). DHCP 장애 동안 FreeD 송출이 사실상 멈추므로, 1초 gate + 실패 시 60초 holdoff로 "분당 한 번의 3초 공백"으로 묶었습니다. static fallback 모드에서는 아예 호출하지 않습니다 — 라이브러리가 static `begin()` 이후에도 `_dhcp`를 유지하는 버그가 있기 때문입니다.
 - **자체 ephemeral port 할당기**: 라이브러리 기본 할당기는 49152~65535를 순회하다 제어 port(50998)와 진단 port(50999)를 밟습니다. target socket이 그 port를 차지하면 W5500의 inbound demux(낮은 socket index 우선)가 제어/진단 수신을 그 socket으로 삼켜버려 원격 제어가 조용히 먹통이 됩니다. 두 port를 건너뛰는 할당기를 따로 둡니다.
 - **serial 콘솔은 2단계 확인**: serial의 `target` 명령은 즉시 적용되지만 `save`를 쳐야 EEPROM에 남습니다. 오타 하나로 운영 설정이 영구히 바뀌지 않도록 의도적으로 그렇게 두었습니다(웹 UI에서 입력 후 OK를 눌러야 반영되는 것과 대칭). UDP 제어는 즉시 저장되는데, 이 비대칭은 버그가 아닙니다.
+- **진단을 unicast가 아닌 broadcast로 유지하는 이유**: 원래 목적은 장비가 서버 주소를 몰라도 발견되게 하는 것이었습니다. 지금은 dashboard 서버 주소가 `10.10.204.229`로 고정돼 있어 그 근거는 약해졌지만, broadcast를 그대로 두기로 했습니다 — dashboard가 유일한 수신자가 아니기 때문입니다. `tools/`의 CLI 도구들도 같은 port 50999를 듣고 있어, unicast로 바꾸면 그중 한쪽만 받고 현장 진단 경로가 끊깁니다. 비용도 무시할 수준입니다(~250B/5s ≈ 0.4kbps). Windows 방화벽 회피는 애초 판단에 곁들여진 이유였을 뿐 핵심은 아니었습니다.
