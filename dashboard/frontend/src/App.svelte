@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte'
   import { status, fpsHistory } from './stores.js'
-  import { connect, postCmd } from './lib/api.js'
+  import { connect, postCmd, selectDevice } from './lib/api.js'
   import StatusBar from './lib/StatusBar.svelte'
   import TargetCard from './lib/TargetCard.svelte'
   import EventLog from './lib/EventLog.svelte'
@@ -11,12 +11,29 @@
   onMount(() => { es = connect() })
   onDestroy(() => es && es.close())
   function reboot(){ if(confirm('Reboot the device? FreeD output stops briefly.')) postCmd('reboot').then(r=>alert(r)) }
+  function onDeviceChange(e) {
+    selectDevice(e.currentTarget.value).then(ok => {
+      if (!ok) alert('Could not switch device — it may no longer be on the network.')
+    })
+  }
 </script>
 
 <h1>
   <span class="dot" class:live={$status.live} class:dead={!$status.live}></span>
   XRFD Dashboard
-  <span class="dev">device: {$status.deviceIp || '-'}{$status.live ? '' : `  (no signal ${$status.ageSec}s)`}</span>
+  <span class="dev">
+    device:
+    {#if $status.devices.length > 1}
+      <select value={$status.deviceIp} on:change={onDeviceChange}>
+        {#each $status.devices as d (d.ip)}
+          <option value={d.ip}>{d.ip}{d.live ? '' : ` — no signal ${d.ageSec}s`}</option>
+        {/each}
+      </select>
+    {:else}
+      {$status.deviceIp || '-'}
+    {/if}
+    {$status.live ? '' : `  (no signal ${$status.ageSec}s)`}
+  </span>
   <ThemeToggle/>
 </h1>
 <StatusBar s={$status}/>

@@ -20,3 +20,15 @@ export async function postCmd(cmd) {
   })
   return (await r.json()).reply
 }
+
+export async function selectDevice(ip) {
+  const r = await fetch('/api/device', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ip }),
+  })
+  // The chart plots the *selected* device's fps; carrying the old series over
+  // would draw a cliff that looks like a fault on the new device.
+  if (r.ok) fpsHistory.set([])
+  return r.ok
+}
