@@ -30,7 +30,7 @@ class State:
 
     def add_log(self, kind, msg):
         with self._lock:
-            self._log.appendleft({"t": datetime.now().strftime("%H:%M:%S"),
+            self._log.appendleft({"t": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                   "k": kind, "m": msg})
 
     def update_from_diag(self, parsed, src_ip):

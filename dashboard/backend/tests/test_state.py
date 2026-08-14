@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from backend.state import State
 from backend import protocol
 
@@ -63,3 +65,12 @@ def test_update_from_diag_publishes_to_subscribers():
         "XRFD up=1 ms=1000 ip=%s rx=0 dhcp=0/0 rtr=Y" % DEV), DEV)
     st.publish()
     assert q.get(timeout=1)["deviceIp"] == DEV
+
+
+def test_log_timestamp_includes_date():
+    # Event log spans days on a long-running device; time-only stamps made it
+    # impossible to tell which day an entry belongs to.
+    st = State()
+    st.add_log("info", "hello")
+    stamp = st.snapshot()["log"][0]["t"]
+    datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S")   # raises ValueError on mismatch
