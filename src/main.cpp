@@ -7,7 +7,7 @@
  * 전송 구조: target별 전용 socket + 동기 송신, 실패 시 escalating backoff.
  *   socket마다 destination이 고정되어 chip이 MAC을 cache (ARP는 target당
  *   최초 1회 — ARP 폭격/timeout 방지). UDP 원격 제어(port 50998),
- *   운영 진단 broadcast(port 50999). 역사는 "네트워크 전역 객체" 주석 참고.
+ *   운영 진단 broadcast(port 50999). 설계 배경은 README "설계 노트" 절 참고.
  *
  * 하드웨어 연결:
  *   - YL-128 TX -> Arduino RX1 (D0)
@@ -159,24 +159,16 @@ AppConfig g_config = {
 // ============================================================================
 // 네트워크 전역 객체 — target별 socket + 동기 송신 (+ UDP 원격 제어/진단)
 //
-// 송신 경로의 역사 (미래의 리팩토링 전에 반드시 읽을 것):
-//   v1.3까지: 단일 socket + 동기 endPacket(). 모든 target이 살아있을 때
-//     59.94Hz를 장기간 유지한 검증된 구성. 단 target이 꺼지면 매 send가
-//     ARP timeout(library 버그 #84로 417.6ms)에 블로킹돼 ~2Hz로 붕괴.
-//   v1.4: target별 socket + 비동기 SEND(fire-and-forget)로 전환 — 이론상
-//     깨끗했지만 현장에서 0.5s 단위의 간헐적 수신 끊김이 두 차례 패치로도
-//     해소되지 않았다 (원인 미확정; async 기계장치가 유력 용의자).
-//   v1.5: 검증된 동기 단일 socket으로 원복 + RTR/RCR raw 수정(417.6ms->80ms)
-//     + escalating backoff + UDP 원격 제어. 끊김은 해소됐으나, 단일 socket의
-//     DIPR 교대가 매 send 재ARP(타겟당 60 ARP/s)를 일으켜 ARP 응답이 한계인
-//     host(.175, 같은 switch의 Windows Server인데도)가 ~5초당 1회 timeout.
-//   v1.6(현재): socket만 target별로 분리, 송신은 v1.5의 동기 그대로 유지.
-//     socket마다 DIPR이 고정되어 chip이 resolved MAC을 cache — ARP는
-//     target당 최초 1회뿐이라 폭격과 timeout이 원인째 사라진다.
-//     비용: cached MAC은 만료가 없어 target NIC 교체(같은 IP, 다른 MAC) 시
-//     silent blackhole — 운영 절차는 dashboard에서 해당 target off->on 토글
-//     또는 reboot (자동 ARP refresh는 의도적으로 제외: v1.4에서 0.5s mute
-//     regression의 원인이었다).
+// 현재 구성의 제약 (설계 경위는 README "설계 노트" 참고):
+//   - 송신은 동기(endPacket 블로킹)를 유지한다 — 비동기 fire-and-forget으로
+//     바꿨다가 간헐적 수신 끊김을 겪은 적이 있다.
+//   - socket은 target별로 고정한다 — 단일 socket으로 여러 target에 보내면
+//     매 send마다 DIPR이 바뀌어 재ARP가 발생하고, ARP 응답이 느린 host가
+//     주기적으로 timeout된다.
+//   - cached MAC은 자동 갱신하지 않는다 (과거 시도에서 간헐적 mute를 유발한
+//     적이 있다) — 대신 target NIC 교체(같은 IP, 다른 MAC) 시 dashboard에서
+//     해당 target을 off->on 토글하거나 컨버터를 재부팅해야 한다
+//     (resetTargetSocket() 참고).
 // ============================================================================
 EthernetUDP g_ctrlUdp; // 원격 제어 수신 (CTRL_PORT)
 EthernetUDP g_diagUdp; // 진단 broadcast 송신 (DIAG_PORT)
@@ -261,7 +253,7 @@ constexpr uint32_t DHCP_RESPONSE_TIMEOUT_MS = 1500;
 // W5500 ARP/재전송 timeout: 20ms x (3+1) = 80ms. 죽은 target으로의 동기
 // endPacket()이 블로킹되는 시간 = ARP timeout이므로 짧아야 하고, 동시에
 // 수신 host가 렌더 부하/절전(EEE)으로 ARP 응답이 수십 ms 늦어도 견뎌야
-// 한다. v1.6의 per-socket MAC cache 덕에 ARP는 target당 최초 1회(또는
+// 한다. per-socket MAC cache 덕에 ARP는 target당 최초 1회(또는
 // socket reset 후)뿐이지만, 그 1회와 dead-target probe가 이 예산을 쓴다.
 // (probe 1회당 loop 블로킹 80ms — Serial1 ring 여유 294ms 안.)
 //
@@ -1339,6 +1331,9 @@ void processCommand(char *cmd) {
     return;
   }
 
+  // serial은 명시적 save 필요 — 오타 하나로 운영 설정이 영구히 바뀌지 않게
+  // 하는 확인 단계다. UDP 핸들러의 자동 저장과 의도적으로 비대칭.
+  // (README "설계 노트" 참고)
   // 멀티 타겟 명령어
   if (strcmp(token, "target") == 0) {
     char *idxStr = strtok(NULL, " ");
