@@ -236,6 +236,7 @@ constexpr uint8_t TARGET_RETRY_MAX_SHIFT = 3; // 500 << 3 = 4000ms cap
 // 명령 (설정 변경은 EEPROM 자동 저장):
 //   status                          - 진단 라인 회신
 //   targets                         - target 목록 (활성화/ip/port)
+//   info                            - MAC / 현재 IP / fallback 후보 회신
 //   target <0-3> on|off             - 활성화/비활성화
 //   target <0-3> ip <a.b.c.d>       - IP 변경
 //   target <0-3> port <n>           - port 변경
@@ -629,6 +630,37 @@ int buildStatusLine(char *buf, size_t size) {
   return len;
 }
 
+// `info` 응답 — 장비 identity 한 줄. 진단 broadcast와 달리 요청이 있을 때만
+// 만들어지므로 buildStatusLine()의 256B 예산과 무관하다.
+// 예: XRFD info mac=02f0edcafe01 ip=10.10.204.123 fb=10.10.204.123
+int buildInfoLine(char *buf, size_t size) {
+  static const uint8_t kZero[4] = {0, 0, 0, 0};
+  IPAddress lip = Ethernet.localIP();
+  const uint8_t *fb = NULL;
+  if (memcmp(g_config.lastDhcpIP, kZero, 4) != 0)
+    fb = g_config.lastDhcpIP;
+  else if (memcmp(g_config.localIP, kZero, 4) != 0)
+    fb = g_config.localIP;
+
+  int len = snprintf(buf, size,
+                     "XRFD info mac=%02x%02x%02x%02x%02x%02x ip=%u.%u.%u.%u fb=",
+                     g_effectiveMac[0], g_effectiveMac[1], g_effectiveMac[2],
+                     g_effectiveMac[3], g_effectiveMac[4], g_effectiveMac[5],
+                     lip[0], lip[1], lip[2], lip[3]);
+  if (len > 0 && len < (int)size) {
+    if (fb == NULL)
+      len += snprintf(buf + len, size - len, "none");
+    else
+      len += snprintf(buf + len, size - len, "%u.%u.%u.%u", fb[0], fb[1], fb[2],
+                      fb[3]);
+  }
+  if (len < 0)
+    return 0;
+  if (len >= (int)size)
+    len = (int)size - 1;
+  return len;
+}
+
 // 운영 진단 datagram을 subnet broadcast로 송신 — 상단 DIAG 상수 주석 참고.
 // 현장 수신: 같은 LAN의 아무 host에서  tcpdump -A -n udp port 50999
 void sendDiagnostics() {
@@ -713,6 +745,8 @@ void processControlPacket() {
     rlen = buildStatusLine(reply, sizeof(reply));
   } else if (strcmp(cmd, "targets") == 0) {
     rlen = buildTargetsReply(reply, sizeof(reply));
+  } else if (strcmp(cmd, "info") == 0) {
+    rlen = buildInfoLine(reply, sizeof(reply));
   } else if (strcmp(cmd, "reboot") == 0) {
     rlen = snprintf(reply, sizeof(reply), "OK rebooting");
     doReboot = true; // 응답을 먼저 보낸 뒤 reset
@@ -763,7 +797,7 @@ void processControlPacket() {
                     on ? "on" : "off");
   } else {
     rlen = snprintf(reply, sizeof(reply),
-                    "ERR cmds: status, targets, reboot, target <0-3> "
+                    "ERR cmds: status, targets, info, reboot, target <0-3> "
                     "on|off|ip <a.b.c.d>|port <n>|set <ip> <port>");
   }
 
@@ -1201,6 +1235,7 @@ void printHelp() {
   Serial.println(F("set offset <hex>    - Remap offset"));
   Serial.println(F("set scale <n>       - Remap scale"));
   Serial.println(F("--- System ---"));
+  Serial.println(F("info                - Show MAC / IP / fallback"));
   Serial.println(F("save                - Save to EEPROM"));
   Serial.println(F("load                - Load from EEPROM"));
   Serial.println(F("reboot              - Restart"));
@@ -1253,6 +1288,14 @@ void processCommand(char *cmd) {
     if (g_networkReady)
       openTargetSockets(); // target 구성이 바뀌었을 수 있음
     printStatus();
+    return;
+  }
+
+  if (strcmp(token, "info") == 0) {
+    char line[128];
+    int n = buildInfoLine(line, sizeof(line));
+    if (n > 0)
+      Serial.println(line);
     return;
   }
 
