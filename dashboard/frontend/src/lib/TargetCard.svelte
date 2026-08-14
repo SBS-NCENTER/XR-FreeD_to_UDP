@@ -1,7 +1,9 @@
 <script>
   import { postCmd } from './api.js'
   export let t
-  function toggle(){ postCmd('target '+t.n+' '+(t.on?'off':'on')) }
+  function toggle(){
+    postCmd('target '+t.n+' '+(t.on?'off':'on')).then(r=>{ if(r && r.startsWith('ERR')) alert(r) })
+  }
   function edit(){
     const ip=prompt('Target '+t.n+' IP:',t.ip); if(ip===null)return
     const port=prompt('Target '+t.n+' port:',t.port); if(port===null)return

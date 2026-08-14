@@ -265,3 +265,5 @@ pio run -t upload  # USB 연결된 보드에 업로드 (~6초, 직후 자동 재
 │                         │ neither → no fallback (DHCP retry)   │
 └─────────────────────────┴──────────────────────────────────────┘
 ```
+
+`set local`은 USB serial 명령입니다 — debug 빌드(`pio run -e uno_r4_wifi_debug`)를 올린 보드에서만 동작하며, 위 나머지 항목처럼 UDP로는 쓸 수 없습니다.

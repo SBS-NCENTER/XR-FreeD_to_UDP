@@ -51,8 +51,11 @@
 // 디버그 모드 설정
 // 0: 프로덕션 (시리얼 출력 OFF)
 // 1: 디버그 (시리얼 출력 ON)
+// platformio.ini의 [env:uno_r4_wifi_debug]가 -D로 오버라이드할 수 있도록 guard.
 // ============================================================================
+#ifndef DEBUG_SERIAL_MONITOR
 #define DEBUG_SERIAL_MONITOR 0
+#endif
 
 // 디버그 매크로 정의
 #if DEBUG_SERIAL_MONITOR == 1
@@ -1020,6 +1023,7 @@ void checkNetworkStatus() {
     }
 
     g_linkWasUp = linkUp;
+    now = millis(); // 위 initNetwork()가 최대 ~12.7s 블로킹 — 아래 재시도 비교는 최신 시각으로
 
     // 무주소 재시도: link는 살아 있는데 주소가 없는 상태(DHCP 실패 +
     // fallback할 known-good 주소 없음). 위의 재초기화는 link **전이**에만

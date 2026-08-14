@@ -16,9 +16,9 @@ RS-422 시리얼로 수신한 FreeD 카메라 트래킹 데이터를 UDP 패킷�
 - **체크섬 검증** 및 자동 오류 복구
 - **Zoom/Focus 리매핑**: 렌즈 데이터 스케일링
 - **EEPROM 설정 저장**: 재부팅 후에도 설정 유지
-- **고유 MAC 자동 유도**: MAC을 하드코딩하지 않고 MCU의 factory unique ID에서 유도 — 같은 firmware를 여러 보드에 올려도 MAC이 겹치지 않아 장비 교체 중 신·구 장비가 함께 켜져 있어도 안전. `set mac`으로 명시 지정 가능(`000000000000`이면 유도로 복귀)
-- **지능형 static fallback**: DHCP 실패 시 **마지막 lease IP를 재사용** (EEPROM 기억). **known-good 주소가 없으면 fallback하지 않고** 30초마다 DHCP만 재시도 — 주소를 추측해 남의 장비 IP를 밟느니 대기한다. fallback 중 5분마다 DHCP 복귀 시도, **W5500 내장 IP 충돌 감지**(IR) 시 즉시 새 lease 요청 + 진단에 `CONFLICT` 표시
-- **미설정 상태로 출고**: target 기본값은 `0.0.0.0:0` / 전부 off — 새 보드는 **아무 데도 송출하지 않는 상태로 켜진다**. 대시보드에서 주소를 지정해야 시작하며, 미설정 target은 켤 수 없다(`ERR target N not configured`). 교체 중 새 장비가 운영 target에 끼어드는 것을 원천 차단
+- **고유 MAC 자동 유도**: MAC을 하드코딩하지 않고 MCU의 factory unique ID에서 유도 — 같은 firmware를 여러 보드에 올려도 MAC이 겹치지 않아 장비 교체 중 신·구 장비가 함께 켜져 있어도 안전. `set mac`으로 명시 지정 가능(`000000000000`이면 유도로 복귀, **reboot 후 적용**)
+- **지능형 static fallback**: DHCP 실패 시 **마지막 lease IP를 재사용** (EEPROM 기억). **known-good 주소가 없으면 fallback하지 않고** ~38초마다(30초 gate + 시도 자체 소요시간 ~8초) DHCP만 재시도 — 주소를 추측해 남의 장비 IP를 밟느니 대기한다. fallback 중 5분마다 DHCP 복귀 시도, **W5500 내장 IP 충돌 감지**(IR) 시 즉시 새 lease 요청 + 진단에 `CONFLICT` 표시
+- **미설정 상태로 출고**: target 기본값은 `0.0.0.0:0` / 전부 off — 새 보드는 **아무 데도 송출하지 않는 상태로 켜진다**. 대시보드에서 주소를 지정해야 시작하며, 미설정 target은 켤 수 없다(`ERR target N not configured (set ip/port first)`). 교체 중 새 장비가 운영 target에 끼어드는 것을 원천 차단
 - **DHCP maintain 통제**: library의 갱신 실패 storm(매 pass ~3초 블로킹 반복)을 1초 gate + 실패 시 60초 holdoff로 유계화
 - **하드웨어 워치독**: loop hang 시 MCU 자동 재시작 (RA4M1 WDT, ~5.59초)
 - **W5500 RTR/RCR raw register 설정**: Ethernet library의 W5500 register 주소 버그(#84)를 우회해 ARP timeout을 실제로 80ms로 단축 (readback 검증 포함)
@@ -79,17 +79,18 @@ lib_deps = arduino-libraries/Ethernet@2.0.2
 
 ### 빌드 모드
 
-`src/main.cpp` 상단의 `DEBUG_SERIAL_MONITOR` 매크로로 전환합니다 (네트워킹은 두 모드 모두 Ethernet Shield 사용).
+PlatformIO 환경으로 전환합니다 (네트워킹은 두 모드 모두 Ethernet Shield 사용). `src/main.cpp`의 `DEBUG_SERIAL_MONITOR` 매크로 값은 직접 고치지 않습니다 — 그 파일은 git 추적 대상이라, 고쳐서 커밋하면 hot-path 지터가 있는 debug 이미지가 실수로 production에 배포될 수 있습니다. 대신 `[env:uno_r4_wifi_debug]`의 build flag로만 전환합니다.
 
-| 모드 | 설정 | 설명 |
+| 환경 | 명령 | 설명 |
 |------|------|------|
-| Production | `#define DEBUG_SERIAL_MONITOR 0` | 시리얼 로그 OFF (권장 — hot-path 부하 제거로 카덴스 안정) |
-| Debug | `#define DEBUG_SERIAL_MONITOR 1` | 시리얼 콘솔/통계 ON (개발·디버깅용) |
+| Production (`default_envs`) | `pio run` | 시리얼 로그 OFF (`DEBUG_SERIAL_MONITOR=0`) — hot-path 부하 제거로 카덴스 안정, 실 배포 대상 |
+| Debug (`uno_r4_wifi_debug`) | `pio run -e uno_r4_wifi_debug` | 시리얼 콘솔/통계 ON (`-D DEBUG_SERIAL_MONITOR=1`) — 개발 중이거나 현장에서 치명적 오류를 진단할 때만. 왜 production엔 없는지는 "설계 노트" 참고 |
 
 ### 업로드
 
 ```bash
-pio run -t upload
+pio run -t upload                       # production (기본)
+pio run -e uno_r4_wifi_debug -t upload  # debug (serial 콘솔 필요할 때)
 pio device monitor -b 115200
 ```
 
@@ -100,6 +101,7 @@ pio device monitor -b 115200
 | 명령어 | 설명 |
 |--------|------|
 | `status` | 전체 상태 표시 |
+| `info` | MAC/IP/fallback 후보 조회 |
 | `help` 또는 `?` | 명령어 목록 |
 | `dump [n]` | n개 패킷 16진수 덤프 (기본 5개) |
 
@@ -119,6 +121,13 @@ pio device monitor -b 115200
 |--------|------|
 | `set ip <a.b.c.d>` | Target 0 IP 설정 |
 | `set port <n>` | Target 0 포트 설정 |
+
+### 디바이스 설정
+
+| 명령어 | 설명 |
+|--------|------|
+| `set mac <hex>` | MAC 명시 지정 (`000000000000` = MCU 유도로 복귀, **reboot 후 적용**) |
+| `set local <a.b.c.d>` | static fallback IP 지정 |
 
 ### 시리얼 설정
 
@@ -456,6 +465,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\xrfd_ctl.ps1 "status" -Ip 10.10
 - **동기 송신 유지 + 죽은 target 대응**: target이 모두 살아있을 때는 동기 `endPacket()`으로 59.94Hz를 장기간 안정적으로 유지했습니다 — 이것이 "정상"을 판단하는 기준점입니다. 문제는 target이 죽었을 때였습니다: 동기 `endPacket()`은 죽은 target으로 보낼 때마다 ARP timeout만큼 loop를 블로킹합니다. Ethernet library의 W5500 register 주소 버그(#84)를 그대로 두면 이 timeout이 417.6ms까지 늘어나, target 하나만 죽어도 나머지 target들의 프레임레이트까지 "2Hz 버그" 수준으로 무너졌습니다. raw register로 timeout을 80ms까지 줄이고, 도달 불가 target에는 500ms→4s escalating backoff를 적용해 죽은 target의 영향을 4초당 60ms 블로킹 1회로 제한했습니다. 비동기 fire-and-forget 송신으로 바꿔본 적도 있지만 간헐적 수신 끊김이 발생해 동기 방식으로 되돌렸습니다 — 원인은 끝내 확정되지 않았고, "async 기계장치 자체가 원인"이라는 가설과 "W5500 비표준 사용(RTR/RCR raw 설정)이 원인"이라는 가설 두 가지만 남았습니다.
 - **target별 전용 socket**: 단일 socket으로 여러 target에 보내면 매 전송마다 W5500의 DIPR(목적지 IP 레지스터)이 교대되어, chip이 캐시한 MAC이 무효화되고 target당 초당 60회 ARP가 발생했습니다. 같은 switch에 있던 수신 host 한 대가 ARP 응답 한계로 주기적으로 timeout을 겪던 원인이었습니다. socket을 target별로 고정하니 ARP는 target당 최초 1회로 줄었습니다. 대신 캐시된 MAC은 만료되지 않으므로, 수신측 NIC을 교체하면(같은 IP, 다른 MAC) 대시보드에서 해당 target을 off→on 토글하거나 컨버터를 재부팅해야 합니다. 캐시를 자동으로 갱신하는 방식은 과거 시도에서 간헐적 mute를 유발한 적이 있어 넣지 않았습니다.
 - **DHCP maintain 유계화**: Ethernet 라이브러리의 `Dhcp.cpp`는 renew/rebind 실패 후 내부 state가 풀리지 않아, 이후 `maintain()` 호출마다 ~3초 블로킹 DISCOVER를 반복합니다(storm). DHCP 장애 동안 FreeD 송출이 사실상 멈추므로, 1초 gate + 실패 시 60초 holdoff로 "분당 한 번의 3초 공백"으로 묶었습니다. static fallback 모드에서는 아예 호출하지 않습니다 — 라이브러리가 static `begin()` 이후에도 `_dhcp`를 유지하는 버그가 있기 때문입니다.
+- **production은 serial 콘솔이 꺼져 있다(의도적)**: `DEBUG_SERIAL_MONITOR`를 켜고 측정해보니 serial 출력 자체가 FreeD hot path를 방해해 59.94Hz 송출에 지터가 눈에 띄게 발생했습니다. 그래서 production 빌드는 `processCommand()`/`printNetworkStatus()`와 모든 `DEBUG_PRINT*`를 통째로 컴파일에서 제외합니다 — 오버사이트가 아니라 실측에 근거한 결정입니다. 개발 중이거나 현장에서 치명적 오류를 진단해야 할 때만 `pio run -e uno_r4_wifi_debug`로 별도 빌드해 씁니다.
 - **자체 ephemeral port 할당기**: 라이브러리 기본 할당기는 49152~65535를 순회하다 제어 port(50998)와 진단 port(50999)를 밟습니다. target socket이 그 port를 차지하면 W5500의 inbound demux(낮은 socket index 우선)가 제어/진단 수신을 그 socket으로 삼켜버려 원격 제어가 조용히 먹통이 됩니다. 두 port를 건너뛰는 할당기를 따로 둡니다.
 - **serial 콘솔은 2단계 확인**: serial의 `target` 명령은 즉시 적용되지만 `save`를 쳐야 EEPROM에 남습니다. 오타 하나로 운영 설정이 영구히 바뀌지 않도록 의도적으로 그렇게 두었습니다(웹 UI에서 입력 후 OK를 눌러야 반영되는 것과 대칭). UDP 제어는 즉시 저장되는데, 이 비대칭은 버그가 아닙니다.
 - **진단을 unicast가 아닌 broadcast로 유지하는 이유**: 원래 목적은 장비가 서버 주소를 몰라도 발견되게 하는 것이었습니다. 지금은 dashboard 서버 주소가 `10.10.204.229`로 고정돼 있어 그 근거는 약해졌지만, broadcast를 그대로 두기로 했습니다 — dashboard가 유일한 수신자가 아니기 때문입니다. `tools/`의 CLI 도구들도 같은 port 50999를 듣고 있어, unicast로 바꾸면 그중 한쪽만 받고 현장 진단 경로가 끊깁니다. 비용도 무시할 수준입니다(~250B/5s ≈ 0.4kbps). Windows 방화벽 회피는 애초 판단에 곁들여진 이유였을 뿐 핵심은 아니었습니다.

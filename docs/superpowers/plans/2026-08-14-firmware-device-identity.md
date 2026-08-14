@@ -1079,9 +1079,9 @@ MAC 자동 유도와 fallback 정책 변경을 README/MANUAL에 반영하고,
 
 이 plan은 새 보드에 올릴 firmware를 만든다. **운영 중인 `10.10.204.123` 장비에는 이 단계에서 flash하지 않는다** (8.9일 무중단 가동 중).
 
-- [ ] 새 보드에 업로드: `pio run -t upload`
+- [ ] 새 보드에 업로드 (아래 두 serial 확인 단계 때문에 **debug 빌드로 flash**): `pio run -e uno_r4_wifi_debug -t upload` — production 빌드(`pio run -t upload`)는 serial 콘솔이 꺼져 있어 이 단계들에서 아무 출력도 나오지 않는다(이유는 README "설계 노트" 참고).
 - [ ] USB serial(115200) 접속 후 `info` — MAC이 `02:f0:ed:` 로 시작하되 뒤 3바이트가 `ca:fe:01`이 **아닌지** 확인. `fb=none`이어야 정상 (아직 lease 이력 없음).
-- [ ] 운영망과 분리된 상태에서 부팅 → serial에 `[ETH] No address — staying off-net` 계열 로그가 뜨고, 30초마다 `[ETH] No address — retrying DHCP...`가 반복되는지 확인. **하드코딩 주소를 잡지 않는 것이 이 plan의 핵심**이다.
+- [ ] 운영망과 분리된 상태에서 부팅 → serial에 `[ETH] No address — staying off-net` 계열 로그가 뜨고, ~38초마다(30초 gate + 시도 자체 소요시간 ~8초) `[ETH] No address — retrying DHCP...`가 반복되는지 확인. **하드코딩 주소를 잡지 않는 것이 이 plan의 핵심**이다.
 - [ ] 운영망 연결 → DHCP 획득 확인. `info`의 `ip=`와 `fb=`가 같은 주소로 채워지는지 확인 (lease를 기억했다는 뜻).
 - [ ] ts5-server에서 원격 확인: `ssh ts5-t 'echo info | nc -u -w1 <새-장비-ip> 50998'`
 - [ ] 기존 장비와 동시 가동: 두 장비의 MAC이 다른지 ARP로 확인
@@ -1095,7 +1095,7 @@ MAC 자동 유도와 fallback 정책 변경을 README/MANUAL에 반영하고,
 
 ## 알려진 한계 (의도된 것)
 
-- **주소가 없는 동안은 진단 broadcast도 나가지 않는다.** DHCP를 한 번도 못 받은 새 장비는 대시보드에 보이지 않으며, serial 콘솔로만 상태를 알 수 있다. 주소를 추측하지 않기로 한 결정의 직접적인 대가다.
+- **주소가 없는 동안은 진단 broadcast도 나가지 않는다.** DHCP를 한 번도 못 받은 새 장비는 대시보드에 보이지 않으며, production 빌드에서는 link LED로만 상태를 알 수 있다 — serial 콘솔은 debug 빌드(`pio run -e uno_r4_wifi_debug`)를 올렸을 때만 쓸 수 있다. 주소를 추측하지 않기로 한 결정의 직접적인 대가다.
 - **기존 운영 장비의 MAC은 이 firmware를 올려도 바뀌지 않는다.** EEPROM에 명시 MAC(`02:F0:ED:CA:FE:01`)이 이미 저장돼 있고 `CONFIG_MAGIC`을 유지하기 때문이다. 의도된 동작이며, 그 덕에 target 설정과 lastDhcpIP도 함께 보존된다. 굳이 유도 MAC으로 바꾸려면 `set mac 000000000000` + `save` + `reboot`.
 - **`set mac`으로 지정한 값은 EEPROM에 남는다.** 유도로 되돌리려면 `set mac 000000000000`.
 - **새 보드는 target을 지정하기 전까지 아무것도 송출하지 않는다.** 의도된 동작이지만, "꽂았는데 왜 안 나오지"의 첫 번째 확인 지점이기도 하다. `targets` 명령이나 대시보드 target 카드로 확인한다.
