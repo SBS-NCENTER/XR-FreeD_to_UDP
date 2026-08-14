@@ -51,12 +51,11 @@ class State:
 
             up, rx, ms = parsed["up"], parsed["rx"], parsed["ms"]
             # real reboot: up AND rx both reset (millis wrap resets up only)
-            if self.device_ip and up < self.up and rx < self.rx:
+            if up < self.up and rx < self.rx:
                 self.add_log("warn", "DEVICE REBOOTED (uptime reset: %ds -> %ds)" % (self.up, up))
                 self._prev_rx = -1
                 self._prev_ms = -1
 
-            self.device_ip = src_ip
             self.last_seen = now
             self.up, self.rx = up, rx
             self.dhcp_ok, self.dhcp_fail = parsed["dhcp_ok"], parsed["dhcp_fail"]

@@ -69,6 +69,8 @@ class UdpBridge(threading.Thread):
             tl = protocol.parse_targets(reply)
             if tl:
                 with self.state._lock:
+                    if self.state.device_ip != ip:
+                        return          # selection moved while we were asking
                     self.state.targets = tl
                 self.state.publish()
 

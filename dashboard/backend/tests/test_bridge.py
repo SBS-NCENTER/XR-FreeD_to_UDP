@@ -116,3 +116,31 @@ def test_targets_refetched_immediately_after_device_switch(monkeypatch):
     br._maybe_refresh_targets()                 # switch must bypass the timer
     assert calls[-1] == ("targets", "10.10.204.124")
     assert len(calls) == 2
+
+
+def test_stale_targets_reply_discarded_after_switch_during_send(monkeypatch):
+    """If the selection moves while send_command("targets") is in flight, the
+    reply belongs to the device that was selected when the request was made —
+    not the one now selected — and must be discarded rather than stored."""
+    from backend import protocol
+    from backend.state import State
+    from backend.udp_bridge import UdpBridge
+
+    st = State()
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.124")
+
+    br = UdpBridge(st)
+
+    def fake_send_command(cmd, timeout=None):
+        # Simulate the race: the selection changes while this "request" is
+        # outstanding, then the (now-stale) reply for .123 comes back.
+        st.select_device("10.10.204.124")
+        return "t0 on 10.10.204.184:50001"
+
+    monkeypatch.setattr(br, "send_command", fake_send_command)
+
+    br._maybe_refresh_targets()                 # polls for .123; switch happens mid-call
+    assert st.snapshot()["targets"] == []        # stale reply discarded, not stored

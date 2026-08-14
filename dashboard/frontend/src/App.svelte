@@ -23,7 +23,7 @@
   XRFD Dashboard
   <span class="dev">
     device:
-    {#if $status.devices.length > 1}
+    {#if ($status.devices?.length ?? 0) > 1}
       <select value={$status.deviceIp} on:change={onDeviceChange}>
         {#each $status.devices as d (d.ip)}
           <option value={d.ip}>{d.ip}{d.live ? '' : ` — no signal ${d.ageSec}s`}</option>
@@ -32,7 +32,7 @@
     {:else}
       {$status.deviceIp || '-'}
     {/if}
-    {$status.live ? '' : `  (no signal ${$status.ageSec}s)`}
+    {$status.live ? '' : ($status.ageSec >= 999999 ? '' : `  (no signal ${$status.ageSec}s)`)}
   </span>
   <ThemeToggle/>
 </h1>
