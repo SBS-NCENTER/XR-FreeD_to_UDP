@@ -137,8 +137,11 @@ AppConfig g_config = {
                                           // ID에서 유도한다 (resolveMac 참고).
                                           // `set mac`으로 명시 지정한 경우에만
                                           // EEPROM 값이 이 유도를 덮어쓴다.
-    {10, 10, 204, 123},                   // Local IP (최후 fallback — 실제로는
-                                          // lastDhcpIP가 우선한다)
+    {0, 0, 0, 0},                         // fallback static IP. all-zero = 미설정.
+                                          // 하드코딩 주소를 기본값으로 두면 EEPROM이
+                                          // 빈 새 보드가 첫 부팅에 그 주소를 집어
+                                          // 이미 그 IP를 쓰던 장비를 밟는다.
+                                          // 운영자가 `set local`로만 지정한다.
     {
         // targets[4] - 멀티 타겟 설정
         {1, {10, 10, 204, 184}, 50001}, // Target 0: 활성화
@@ -207,6 +210,10 @@ uint32_t g_maintainHoldoffMs = 0; // 0 = 정상(1s gate), >0 = 실패 후 holdof
 
 // static fallback 중 DHCP 복귀 시도 주기 (시도당 ~3.5s 송출 공백)
 constexpr uint32_t DHCP_FALLBACK_RETRY_MS = 300000;
+
+// 주소가 아예 없을 때(fallback할 known-good 주소도 없음)의 DHCP 재시도 주기.
+// 이 상태에선 송출할 수단 자체가 없으니 fallback 복귀(5분)보다 자주 시도한다.
+constexpr uint32_t DHCP_NOADDR_RETRY_MS = 30000;
 uint32_t g_lastDhcpRetryMs = 0;
 
 // W5500 내장 IP 충돌 감지(IR bit7) 상태 — 진단 표시 + fallback 시 즉시
@@ -788,13 +795,29 @@ void rememberDhcpLease() {
   }
 }
 
-// static fallback 적용: lastDhcpIP(있으면) 또는 설정 localIP. gateway는 같은
-// /24의 .1로 가정 (target들이 전부 같은 subnet이라 실제로는 쓰이지 않는다).
-void applyStaticFallback() {
+// static fallback 적용: lastDhcpIP(있으면) 또는 운영자가 `set local`로 지정한
+// localIP. gateway는 같은 /24의 .1로 가정 (target들이 전부 같은 subnet이라
+// 실제로는 쓰이지 않는다).
+//
+// 둘 다 비어 있으면 아무것도 하지 않고 false를 반환한다. 이 장비는 이
+// 네트워크에서 한 번도 lease를 받은 적이 없어 **어떤 주소가 비었는지 모르며**,
+// 추측한 주소를 집으면 남의 장비 IP를 밟는다. 그럴 바엔 주소 없이 DHCP를
+// 계속 기다리는 편이 낫다 (checkNetworkStatus의 무주소 재시도가 담당).
+bool applyStaticFallback() {
   static const uint8_t kZero[4] = {0, 0, 0, 0};
-  const uint8_t *a = (memcmp(g_config.lastDhcpIP, kZero, 4) != 0)
-                         ? g_config.lastDhcpIP
-                         : g_config.localIP;
+  const uint8_t *a = NULL;
+  if (memcmp(g_config.lastDhcpIP, kZero, 4) != 0)
+    a = g_config.lastDhcpIP;
+  else if (memcmp(g_config.localIP, kZero, 4) != 0)
+    a = g_config.localIP;
+
+  if (a == NULL) {
+    DEBUG_PRINTLN_F("[ETH] No known-good address — staying off-net, DHCP only");
+    g_staticFallback = false; // maintain()도 돌리지 않는다 (주소가 없다)
+    g_lastDhcpRetryMs = millis();
+    return false;
+  }
+
   IPAddress ip(a[0], a[1], a[2], a[3]);
   IPAddress gateway(a[0], a[1], a[2], 1);
   IPAddress subnet(255, 255, 255, 0);
@@ -809,6 +832,7 @@ void applyStaticFallback() {
   g_diagUdp.stop();
   g_diagUdp.begin(nextSrcPort());
   openTargetSockets();
+  return true;
 }
 
 bool initNetwork() {
@@ -887,8 +911,16 @@ bool initNetwork() {
   }
 
   // DHCP 실패 - static fallback (마지막 lease IP 우선)
-  DEBUG_PRINTLN_F("[ETH] DHCP failed! Using static fallback...");
-  applyStaticFallback();
+  DEBUG_PRINTLN_F("[ETH] DHCP failed! Trying static fallback...");
+  if (!applyStaticFallback()) {
+    // 쓸 주소가 없다. 네트워크 미준비 상태로 두고 checkNetworkStatus()의
+    // 무주소 재시도에 맡긴다. link는 살아 있으므로 g_linkWasUp은 true로
+    // 둔다 — 여기서 false로 두면 다음 pass가 link UP 전이로 오인해
+    // initNetwork()를 즉시 다시 불러 재시도 주기가 무의미해진다.
+    g_networkReady = false;
+    g_linkWasUp = true;
+    return false;
+  }
   DEBUG_PRINT_F("[ETH] Static IP: ");
   DEBUG_PRINTLN(Ethernet.localIP());
 
@@ -919,7 +951,10 @@ bool tryDhcpUpgrade() {
     DEBUG_PRINTLN(Ethernet.localIP());
     return true;
   }
-  applyStaticFallback(); // 실패 — begin()이 칩 설정을 건드렸으니 재적용
+  // 실패 — begin()이 칩 설정을 건드렸으니 재적용. 쓸 주소가 없으면
+  // (무주소 상태에서 올라온 재시도) 네트워크 미준비로 되돌린다.
+  if (!applyStaticFallback())
+    g_networkReady = false;
   WDT.refresh();
   return false;
 }
@@ -942,6 +977,17 @@ void checkNetworkStatus() {
     }
 
     g_linkWasUp = linkUp;
+
+    // 무주소 재시도: link는 살아 있는데 주소가 없는 상태(DHCP 실패 +
+    // fallback할 known-good 주소 없음). 위의 재초기화는 link **전이**에만
+    // 걸려 있어서, 이 분기가 없으면 케이블을 뽑았다 꽂기 전까지 영영
+    // 복구되지 않는다.
+    if (!g_networkReady && linkUp &&
+        now - g_lastDhcpRetryMs >= DHCP_NOADDR_RETRY_MS) {
+      g_lastDhcpRetryMs = now; // 실패해도 주기 유지
+      DEBUG_PRINTLN_F("[ETH] No address — retrying DHCP...");
+      initNetwork();
+    }
 
     // W5500 내장 IP 충돌 감지: 다른 host가 우리 IP를 주장하면(같은 sender
     // IP의 ARP 수신) chip이 IR bit7을 세운다. fallback 중의 충돌은 대개
