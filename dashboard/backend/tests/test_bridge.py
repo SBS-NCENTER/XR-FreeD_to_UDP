@@ -87,3 +87,32 @@ def test_bind_sets_reuseport(monkeypatch):
         assert s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) != 0
     finally:
         s.close()
+
+
+def test_targets_refetched_immediately_after_device_switch(monkeypatch):
+    from backend import protocol
+    from backend.state import State
+    from backend.udp_bridge import UdpBridge
+
+    st = State()
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
+    st.update_from_diag(protocol.parse_diag(
+        "XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.124")
+
+    br = UdpBridge(st)
+    calls = []
+    monkeypatch.setattr(br, "send_command",
+                        lambda cmd, timeout=None: calls.append((cmd, st.device_ip))
+                        or "t0 on 10.10.204.184:50001")
+
+    br._maybe_refresh_targets()                 # first poll for .123
+    assert calls == [("targets", "10.10.204.123")]
+
+    br._maybe_refresh_targets()                 # within the refresh window: no-op
+    assert len(calls) == 1
+
+    st.select_device("10.10.204.124")
+    br._maybe_refresh_targets()                 # switch must bypass the timer
+    assert calls[-1] == ("targets", "10.10.204.124")
+    assert len(calls) == 2

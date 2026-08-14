@@ -12,6 +12,7 @@ class UdpBridge(threading.Thread):
         self.state = state
         self._stop = threading.Event()
         self._last_targets_refresh = 0.0
+        self._targets_for_ip = ""      # which device the cached targets belong to
 
     def _bind(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -51,8 +52,15 @@ class UdpBridge(threading.Thread):
         sock.close()
 
     def _maybe_refresh_targets(self):
-        if not self.state.device_ip:
+        ip = self.state.device_ip
+        if not ip:
             return
+        # A switch invalidates the cached target list — refetch now instead of
+        # showing an empty card (or the previous device's targets) for up to
+        # TARGETS_REFRESH_S.
+        if ip != self._targets_for_ip:
+            self._targets_for_ip = ip
+            self._last_targets_refresh = 0.0
         if time.time() - self._last_targets_refresh < config.TARGETS_REFRESH_S:
             return
         self._last_targets_refresh = time.time()
