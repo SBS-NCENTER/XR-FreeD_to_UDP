@@ -10,8 +10,9 @@ from . import config
 class State:
     def __init__(self):
         self._lock = threading.RLock()
-        self.device_ip = ""
+        self.device_ip = ""           # currently *selected* device (detail below is its)
         self.last_seen = 0.0          # wall time (time.time()) of last diag
+        self._devices = {}            # ip -> wall time of that device's last diag
         self.up = 0
         self.rx = 0
         self.fps = 0.0
@@ -25,7 +26,6 @@ class State:
         self._prev_rx = -1
         self._prev_ms = -1
         self._prev_time = None
-        self._ignored_ips = set()
         self._subscribers = set()
 
     def add_log(self, kind, msg):
@@ -38,13 +38,15 @@ class State:
             return
         now = time.time()
         with self._lock:
-            # ignore a second XRFD device while the current one is live
-            if (self.device_ip and src_ip != self.device_ip
-                    and (now - self.last_seen) <= config.DEVICE_LIVE_S):
-                if src_ip not in self._ignored_ips:
-                    self._ignored_ips.add(src_ip)
-                    self.add_log("warn", "ignoring second XRFD device at %s (active: %s)"
-                                 % (src_ip, self.device_ip))
+            # Every device that broadcasts stays in the registry so the UI can
+            # offer it; only the selected one drives the detail fields below.
+            if src_ip not in self._devices:
+                self.add_log("info", "device found: %s" % src_ip)
+            self._devices[src_ip] = now
+
+            if not self.device_ip:
+                self.device_ip = src_ip
+            elif src_ip != self.device_ip:
                 return
 
             up, rx, ms = parsed["up"], parsed["rx"], parsed["ms"]
@@ -53,8 +55,6 @@ class State:
                 self.add_log("warn", "DEVICE REBOOTED (uptime reset: %ds -> %ds)" % (self.up, up))
                 self._prev_rx = -1
                 self._prev_ms = -1
-            if not self.device_ip:
-                self.add_log("info", "device found: %s" % src_ip)
 
             self.device_ip = src_ip
             self.last_seen = now
@@ -80,12 +80,46 @@ class State:
 
             self.diag_state = parsed["targets"]
 
+    def select_device(self, ip):
+        """Point the dashboard at a different discovered device.
+
+        Returns False if that IP has never been heard from. Detail counters are
+        cleared so the previous device's uptime/rx/fps can't be misread as the
+        new one's, and so the reboot heuristic doesn't fire on the switch.
+        """
+        with self._lock:
+            if ip not in self._devices:
+                return False
+            if ip == self.device_ip:
+                return True
+            self.device_ip = ip
+            self.last_seen = 0.0
+            self.up = 0
+            self.rx = 0
+            self.fps = 0.0
+            self.dhcp_ok = 0
+            self.dhcp_fail = 0
+            self.rtr = "?"
+            self.conflict = False
+            self.diag_state = {}
+            self.targets = []
+            self._prev_rx = -1
+            self._prev_ms = -1
+            self._prev_time = None
+            self.add_log("info", "switched to %s" % ip)
+            return True
+
     def snapshot(self):
         with self._lock:
+            now = time.time()
             if self.last_seen:
-                age = int(min(999999, time.time() - self.last_seen))
+                age = int(min(999999, now - self.last_seen))
             else:
                 age = 999999
+            devices = [{"ip": ip,
+                        "ageSec": int(min(999999, now - seen)),
+                        "live": (now - seen) <= config.DEVICE_LIVE_S}
+                       for ip, seen in sorted(self._devices.items())]
             tl = []
             for t in self.targets:
                 d = self.diag_state.get(str(t["n"]))
@@ -96,6 +130,7 @@ class State:
                 tl.append(entry)
             return {
                 "deviceIp": self.device_ip,
+                "devices": devices,
                 "ageSec": age,
                 "live": bool(self.device_ip) and age <= config.DEVICE_LIVE_S,
                 "up": self.up, "rx": self.rx, "fps": self.fps,

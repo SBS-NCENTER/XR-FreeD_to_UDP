@@ -74,3 +74,67 @@ def test_log_timestamp_includes_date():
     st.add_log("info", "hello")
     stamp = st.snapshot()["log"][0]["t"]
     datetime.strptime(stamp, "%Y-%m-%d %H:%M:%S")   # raises ValueError on mismatch
+
+
+DEV2 = "10.10.204.124"
+
+
+def test_second_device_is_registered_not_discarded():
+    # Replacing a converter means both units are briefly live. The old build
+    # silently dropped the second one; it must show up as selectable instead.
+    st = State()
+    feed(st, "XRFD up=10 ms=10000 ip=%s rx=5 dhcp=0/0 rtr=Y" % DEV)
+    feed(st, "XRFD up=3 ms=3000 ip=%s rx=1 dhcp=0/0 rtr=Y" % DEV2, src=DEV2)
+    snap = st.snapshot()
+    assert snap["deviceIp"] == DEV                       # selection unchanged
+    assert {d["ip"] for d in snap["devices"]} == {DEV, DEV2}
+    assert snap["up"] == 10 and snap["rx"] == 5          # detail still the selected one
+
+
+def test_unselected_device_does_not_overwrite_detail():
+    st = State()
+    feed(st, "XRFD up=100 ms=100000 ip=%s rx=6000 dhcp=0/0 rtr=Y" % DEV)
+    feed(st, "XRFD up=1 ms=1000 ip=%s rx=0 dhcp=0/0 rtr=N" % DEV2, src=DEV2)
+    snap = st.snapshot()
+    assert snap["up"] == 100 and snap["rx"] == 6000 and snap["rtr"] == "Y"
+    # a second device must not trip the reboot heuristic on the selected one
+    assert not any("REBOOT" in e["m"] for e in snap["log"])
+
+
+def test_select_device_switches_and_resets_detail():
+    st = State()
+    feed(st, "XRFD up=100 ms=100000 ip=%s rx=6000 dhcp=3/1 rtr=Y" % DEV)
+    feed(st, "XRFD up=7 ms=7000 ip=%s rx=42 dhcp=0/0 rtr=N" % DEV2, src=DEV2)
+    assert st.select_device(DEV2) is True
+    snap = st.snapshot()
+    assert snap["deviceIp"] == DEV2
+    # stale counters from the previous device must not linger
+    assert snap["up"] == 0 and snap["rx"] == 0 and snap["fps"] == 0
+    assert snap["dhcpOk"] == 0 and snap["dhcpFail"] == 0 and snap["rtr"] == "?"
+    assert snap["targets"] == []
+    assert snap["live"] is False          # nothing heard from it *since* the switch
+
+
+def test_select_device_then_next_diag_populates():
+    st = State()
+    feed(st, "XRFD up=100 ms=100000 ip=%s rx=6000 dhcp=0/0 rtr=Y" % DEV)
+    feed(st, "XRFD up=7 ms=7000 ip=%s rx=42 dhcp=0/0 rtr=N" % DEV2, src=DEV2)
+    st.select_device(DEV2)
+    feed(st, "XRFD up=8 ms=8000 ip=%s rx=100 dhcp=0/0 rtr=N" % DEV2, src=DEV2)
+    snap = st.snapshot()
+    assert snap["up"] == 8 and snap["rx"] == 100 and snap["live"] is True
+
+
+def test_select_unknown_device_rejected():
+    st = State()
+    feed(st, "XRFD up=10 ms=10000 ip=%s rx=5 dhcp=0/0 rtr=Y" % DEV)
+    assert st.select_device("10.10.204.199") is False
+    assert st.snapshot()["deviceIp"] == DEV
+
+
+def test_device_found_logged_once_per_ip():
+    st = State()
+    for _ in range(3):
+        feed(st, "XRFD up=10 ms=10000 ip=%s rx=5 dhcp=0/0 rtr=Y" % DEV2, src=DEV2)
+    found = [e for e in st.snapshot()["log"] if e["m"].startswith("device found")]
+    assert len(found) == 1
