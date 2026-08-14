@@ -17,7 +17,7 @@
 - **진단 broadcast 문자열 포맷을 바꾸지 않는다.** `dashboard/backend/protocol.py:5`와 `tools/xrfd_dashboard.py:38`의 정규식이 이 포맷에 의존한다.
 - **FreeD 송출 hot path에 블로킹을 추가하지 않는다.** `loop()`, `processSerialData()`, `sendToTargets()` 경로에 새 지연이 생기면 안 된다. 과거 target 하나가 죽었을 때 살아있는 target의 전송률이 붕괴한 회귀가 있었고, v1.6의 per-target socket 구조가 그 수정본이다.
 - **블로킹 구간에는 `WDT.refresh()`를 유지한다.** 하드웨어 워치독이 ~5.59s다 (`src/main.cpp:1613`).
-- 코드 주석은 영어, 단 기존 파일의 한국어 주석 스타일을 따르는 곳은 그대로 유지한다 (`src/main.cpp`는 한국어 주석 관례).
+- **코드 주석 언어**: 새로 만드는 파일(`include/mac_from_uid.h`, `test/**`)은 **영어**. `src/main.cpp`에 추가·수정하는 주석만 그 파일의 기존 한국어 관례를 따른다 — 한 파일 안에서 두 언어가 섞이는 것이 파일 간에 갈리는 것보다 나쁘기 때문이다. 이 규칙은 아래 task들의 코드 블록보다 우선한다.
 - **serial 콘솔의 저장 정책을 바꾸지 않는다.** serial의 `target` 명령이 `saveConfig()`를 부르지 않고 운영자가 `save`를 따로 치도록 한 것은 의도된 확인 단계다(웹 UI의 prompt→OK와 대칭). UDP 핸들러와의 이 비대칭은 버그가 아니므로 "일관성" 명목으로 고치지 말 것. serial `target N port`의 느슨한 `atoi` 파싱도 같은 이유로 그대로 둔다.
 - **Task 6은 실행 코드를 한 줄도 바꾸지 않는다.** 주석과 문서만 대상이며, 검증 기준은 빌드 산출물 크기가 이전과 동일한 것이다.
 
@@ -89,9 +89,9 @@ build_flags = -I include
 
 #include "mac_from_uid.h"
 
-// RA4M1 unique ID는 16바이트다. 같은 wafer/lot에서 산 보드들은 앞쪽
-// 바이트가 겹치는 경향이 있어, 테스트 벡터도 뒤쪽 1바이트만 다른
-// "최악에 가까운" 쌍을 쓴다.
+// RA4M1 unique IDs are 16 bytes. Boards from the same wafer/lot tend to share
+// their leading bytes, so these vectors differ only in a trailing byte — a
+// near-worst-case pair for boards bought together.
 static const uint8_t UID_A[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
                                   0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00};
 static const uint8_t UID_B[16] = {0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
@@ -110,8 +110,8 @@ void test_prefix_is_fixed(void) {
 }
 
 void test_is_locally_administered_unicast(void) {
-  // bit1 = locally administered(1), bit0 = multicast(0).
-  // 이게 깨지면 switch가 프레임을 multicast로 취급해 조용히 오동작한다.
+  // bit1 = locally administered (1), bit0 = multicast (0). If this breaks, a
+  // switch treats our frames as multicast and things fail silently.
   uint8_t mac[6];
   deriveMacFromUid(UID_A, sizeof(UID_A), mac);
   TEST_ASSERT_EQUAL_UINT8(0x02, mac[0] & 0x03);
@@ -167,19 +167,19 @@ Expected: 컴파일 실패 — `fatal error: mac_from_uid.h: No such file or dir
 #include <stddef.h>
 #include <stdint.h>
 
-// XRFD 장비의 MAC prefix. 과거 하드코딩 MAC(02:F0:ED:CA:FE:01)의 앞 3바이트를
-// 그대로 유지해서, show LAN의 MAC table에서 "이건 XRFD 컨버터"라고 눈으로
-// 알아볼 수 있게 한다. 0x02 = locally administered + unicast.
+// MAC prefix for XRFD units. Keeps the first three bytes of the historical
+// hardcoded MAC (02:F0:ED:CA:FE:01) so the unit stays recognizable by eye in a
+// switch's MAC table. 0x02 = locally administered + unicast.
 static const uint8_t XRFD_MAC_PREFIX[3] = {0x02, 0xF0, 0xED};
 
-// MCU의 factory unique ID에서 보드별로 고유한 MAC을 유도한다.
+// Derive a per-board MAC from the MCU's factory unique ID.
 //
-// 바이트를 잘라 쓰지 않고 해시하는 이유: 같은 시기에 구매한 RA4M1 보드들은
-// unique ID의 앞쪽 바이트가 겹치는 경향이 있어, raw slice는 하필 함께 산
-// 보드끼리 충돌할 수 있다. FNV-1a는 입력 16바이트 전부를 출력 전 비트에
-// 섞어 넣는다.
+// Why hash instead of slicing bytes: RA4M1 boards bought at the same time tend
+// to share the leading bytes of their unique ID, so a raw slice can collide
+// across exactly the boards most likely to sit on the same LAN. FNV-1a mixes
+// all 16 input bytes into every output bit.
 //
-// out[0..2] = XRFD_MAC_PREFIX, out[3..5] = 해시 하위 24비트.
+// out[0..2] = XRFD_MAC_PREFIX, out[3..5] = low 24 bits of the hash.
 inline void deriveMacFromUid(const uint8_t *uid, size_t uidLen, uint8_t out[6]) {
   uint32_t h = 2166136261UL; // FNV-1a 32-bit offset basis
   for (size_t i = 0; i < uidLen; i++) {
