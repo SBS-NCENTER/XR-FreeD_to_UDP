@@ -15,6 +15,7 @@ NEXT_SESSION.md
 doc/
 PROGRESS/
 PROGRESS.md
+.superpowers/
 
 # macOS
 .DS_Store
