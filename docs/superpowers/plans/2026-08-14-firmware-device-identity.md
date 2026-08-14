@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 같은 firmware를 올린 두 대 이상의 XRFD 컨버터가 같은 LAN에서 동시에 켜져도 MAC 주소와 IP 주소가 절대 충돌하지 않게 만든다.
+**Goal:** 같은 firmware를 올린 두 대 이상의 XRFD 컨버터가 같은 LAN에서 동시에 켜져도 서로를 밟지 않게 만든다 — MAC도, IP도, 송출 대상도.
 
-**Architecture:** MAC은 하드코딩 상수 대신 RA4M1의 128-bit factory unique ID에서 유도해 보드마다 자동으로 달라지게 한다 (`R_BSP_UniqueIdGet()`, FSP inline). static fallback IP는 "추측한 주소"(하드코딩 `10.10.204.123`)를 후보에서 제거하고, EEPROM에 남은 지난 DHCP lease 또는 운영자가 명시 지정한 주소만 사용한다 — 둘 다 없으면 fallback하지 않고 DHCP만 재시도한다. MAC 원격 조회용 `info` 명령을 신설하되, 5초 주기 진단 broadcast(`buildStatusLine()`)는 버퍼 여유가 9B뿐이라 손대지 않는다.
+**Architecture:** 새 보드가 **자기 정체성을 스스로 만들고, 나머지는 아무것도 가정하지 않는다**는 원칙 하나로 묶인다. MAC은 하드코딩 상수 대신 RA4M1의 128-bit factory unique ID에서 유도해 보드마다 자동으로 달라지게 한다 (`R_BSP_UniqueIdGet()`, FSP inline). static fallback IP는 "추측한 주소"(하드코딩 `10.10.204.123`)를 후보에서 제거하고, EEPROM에 남은 지난 DHCP lease 또는 운영자가 명시 지정한 주소만 사용한다 — 둘 다 없으면 fallback하지 않고 DHCP만 재시도한다. target도 같은 논리로 미설정(`0.0.0.0:0`, disabled)에서 시작해, 운영자가 대시보드에서 지정하기 전까지 아무 데도 송출하지 않는다. MAC 원격 조회용 `info` 명령을 신설하되, 5초 주기 진단 broadcast(`buildStatusLine()`)는 버퍼 여유가 9B뿐이라 손대지 않는다. 마지막으로 코드 주석에서 과거 회귀 서사를 걷어내고 README로 옮긴다 — 기능 변경과 섞이지 않도록 맨 뒤 별도 task로 분리한다.
 
 **Tech Stack:** C++ (Arduino framework, PlatformIO 6.1.19), Arduino UNO R4 WiFi (Renesas RA4M1), `arduino-libraries/Ethernet@2.0.2` (W5500), Renesas FSP BSP, Unity (native 단위 테스트)
 
@@ -18,6 +18,8 @@
 - **FreeD 송출 hot path에 블로킹을 추가하지 않는다.** `loop()`, `processSerialData()`, `sendToTargets()` 경로에 새 지연이 생기면 안 된다. 과거 target 하나가 죽었을 때 살아있는 target의 전송률이 붕괴한 회귀가 있었고, v1.6의 per-target socket 구조가 그 수정본이다.
 - **블로킹 구간에는 `WDT.refresh()`를 유지한다.** 하드웨어 워치독이 ~5.59s다 (`src/main.cpp:1613`).
 - 코드 주석은 영어, 단 기존 파일의 한국어 주석 스타일을 따르는 곳은 그대로 유지한다 (`src/main.cpp`는 한국어 주석 관례).
+- **serial 콘솔의 저장 정책을 바꾸지 않는다.** serial의 `target` 명령이 `saveConfig()`를 부르지 않고 운영자가 `save`를 따로 치도록 한 것은 의도된 확인 단계다(웹 UI의 prompt→OK와 대칭). UDP 핸들러와의 이 비대칭은 버그가 아니므로 "일관성" 명목으로 고치지 말 것. serial `target N port`의 느슨한 `atoi` 파싱도 같은 이유로 그대로 둔다.
+- **Task 6은 실행 코드를 한 줄도 바꾸지 않는다.** 주석과 문서만 대상이며, 검증 기준은 빌드 산출물 크기가 이전과 동일한 것이다.
 
 ## File Structure
 
@@ -32,7 +34,12 @@
 
 `include/`와 `test/`에는 현재 PlatformIO 기본 `README` 스텁만 있다. 새 파일은 그 옆에 추가하며 스텁은 지우지 않는다.
 
-**의존 순서:** Task 1 → Task 2 → Task 3 → Task 4 → Task 5. Task 2는 Task 1의 헤더를, Task 3은 Task 2가 만든 `g_effectiveMac`을 쓴다.
+**의존 순서:** Task 1 → Task 2 → Task 3 → Task 4 → Task 5 → Task 6 → Task 7.
+
+- Task 2는 Task 1의 헤더를, Task 3과 Task 4는 Task 2가 만든 `g_effectiveMac`을 쓴다.
+- Task 5(target 기본값)는 앞선 task와 독립적이라 순서를 앞당겨도 되지만, 뒤에 두면 Task 6의 주석 정리가 이미 최종 코드를 대상으로 한 번에 끝난다.
+- Task 6은 **실행 코드를 한 줄도 바꾸지 않는다**. 기능 변경 diff에 주석 삭제가 섞이면 리뷰가 어려워지므로 반드시 맨 뒤 별도 커밋으로 분리한다.
+- Task 7은 Task 2~6의 최종 동작을 문서에 반영하므로 언제나 마지막이다.
 
 ---
 
@@ -714,14 +721,238 @@ status에 얹지 않은 이유: buildStatusLine()은 5초 주기 진단 broadcas
 
 ---
 
-### Task 5: 문서 갱신
+### Task 5: target 기본값을 미설정으로 + 미설정 target 활성화 차단
+
+**Files:**
+- Modify: `src/main.cpp` (기본값 `src/main.cpp:140-146`, UDP `target N on|off` 핸들러 `src/main.cpp:722` 부근, serial `target` 핸들러 `src/main.cpp:1275` 부근)
+
+**Interfaces:**
+- Consumes: 없음 (앞선 task와 독립)
+- Produces: `bool targetConfigured(uint8_t i)` — target i의 IP가 `0.0.0.0`이 아니고 port가 0이 아닌지. UDP와 serial의 `on` 핸들러가 공유한다.
+
+**배경:** 지금 기본 target은 실제 운영 주소(`10.10.204.184:50001`, `10.10.204.175:50001`)이고 앞의 둘이 `enabled = 1`이다. 그래서 EEPROM이 빈 새 보드는 **전원을 넣는 순간 운영 target으로 FreeD를 쏘기 시작한다**. 교체 작업 중이라면 기존 장비와 같은 port에 두 스트림이 섞여 들어가 수신측 tracking이 튄다. MAC과 IP를 분리해도 이 경로는 막히지 않는다 — 네트워크 계층이 아니라 응용 계층의 충돌이기 때문이다.
+
+기본값을 미설정으로 바꾸면 새 보드는 아무 데도 쏘지 않는 상태로 켜지고, 운영자가 대시보드에서 명시적으로 지정해야 송출이 시작된다. 대시보드에는 이미 편집 UI가 있다 (`dashboard/frontend/src/lib/TargetCard.svelte`의 `Edit IP/Port` 버튼 → `target N set <ip> <port>`), 그리고 그 `set` 명령은 설정과 동시에 `enabled = 1`로 만들므로 별도의 켜기 조작이 필요 없다. **대시보드 변경은 이 plan의 범위가 아니다.**
+
+기본값을 0으로 만들면 새로 문제가 되는 경로가 하나 생긴다: `target N on`에는 IP/port 검증이 전혀 없어서(`ip`/`port` 명령에만 있다) 미설정 target을 켤 수 있다. socket은 열리지만 송신은 계속 실패해, 대시보드에 "ON인데 fail 카운터만 오르는" 상태로 보인다. 지금까지는 기본값이 실제 주소여서 드러나지 않던 경로다.
+
+**serial 콘솔의 저장 정책은 건드리지 않는다.** serial의 `target` 명령이 `saveConfig()`를 부르지 않고 운영자가 `save`를 따로 쳐야 하는 것은 **의도된 설계**다 — 오타 하나로 운영 장비 설정이 영구히 바뀌지 않도록 확인 단계를 두는 것이며, 웹 UI에서 prompt에 입력한 뒤 OK를 눌러야 반영되는 것과 대칭이다. UDP 핸들러와의 이 비대칭은 버그가 아니므로 "일관성" 명목으로 고치지 말 것. 같은 이유로 serial `target N port`의 느슨한 `atoi` 파싱도 이 task의 범위가 아니다 (결과가 `[OK] Target 0 Port: 0`처럼 즉시 출력되어 눈으로 확인되고, `save` 전이라 되돌리기 쉽다).
+
+- [ ] **Step 1: target 기본값을 미설정으로 바꾼다**
+
+`src/main.cpp:140-146`의 targets 초기화 블록을 찾는다:
+
+```cpp
+    {
+        // targets[4] - 멀티 타겟 설정
+        {1, {10, 10, 204, 184}, 50001}, // Target 0: 활성화
+        {1, {10, 10, 204, 175}, 50001}, // Target 1: 활성화
+        {0, {10, 10, 204, 186}, 50001}, // Target 2: 비활성화
+        {0, {10, 10, 204, 187}, 50001}, // Target 3: 비활성화
+    },
+```
+
+다음으로 교체:
+
+```cpp
+    {
+        // targets[4] — 전부 미설정(0.0.0.0:0, off)으로 출고한다. 실제 주소를
+        // 기본값으로 두면 EEPROM이 빈 새 보드가 전원을 넣는 순간 운영 target
+        // 으로 송출을 시작해, 교체 중인 기존 장비와 같은 port에 두 스트림이
+        // 섞인다. 대시보드에서 지정해야 송출이 시작된다.
+        {0, {0, 0, 0, 0}, 0}, // Target 0
+        {0, {0, 0, 0, 0}, 0}, // Target 1
+        {0, {0, 0, 0, 0}, 0}, // Target 2
+        {0, {0, 0, 0, 0}, 0}, // Target 3
+    },
+```
+
+**CONFIG_MAGIC은 건드리지 않는다.** 그래야 이 기본값이 EEPROM이 빈 새 보드에만 적용되고, 운영 장비의 저장된 target 설정은 업데이트 후에도 그대로 유지된다.
+
+- [ ] **Step 2: targetConfigured() 헬퍼를 추가한다**
+
+`applyTargetConfigChange()` 정의 바로 위(`src/main.cpp:505` 부근)에 추가:
+
+```cpp
+// target이 실제로 지정됐는지 — IP가 0.0.0.0이거나 port가 0이면 미설정이다.
+// 미설정 target을 켜면 socket은 열리지만 송신이 계속 실패해, 대시보드에
+// "ON인데 fail만 오르는" 상태로 보인다. on 경로에서 이걸 막는다.
+bool targetConfigured(uint8_t i) {
+  const TargetConfig &tc = g_config.targets[i];
+  return tc.port != 0 &&
+         (tc.ip[0] | tc.ip[1] | tc.ip[2] | tc.ip[3]) != 0;
+}
+```
+
+- [ ] **Step 3: UDP `target N on` 핸들러에 가드를 넣는다**
+
+`src/main.cpp:722` 부근, `target %d %15s`를 처리하는 분기를 찾는다:
+
+```cpp
+  } else if (sscanf(cmd, "target %d %15s", &idx, arg) == 2 && idx >= 0 &&
+             idx < MAX_TARGETS &&
+             (strcmp(arg, "on") == 0 || strcmp(arg, "off") == 0)) {
+    bool on = (strcmp(arg, "on") == 0);
+    g_config.targets[idx].enabled = on ? 1 : 0;
+```
+
+`bool on = ...` 다음 줄에 가드를 삽입한다 (`off`는 항상 허용해야 하므로 `on`일 때만 검사):
+
+```cpp
+    bool on = (strcmp(arg, "on") == 0);
+    if (on && !targetConfigured(idx)) {
+      rlen = snprintf(reply, sizeof(reply),
+                      "ERR target %d not configured (set ip/port first)", idx);
+    } else {
+      g_config.targets[idx].enabled = on ? 1 : 0;
+```
+
+그리고 이 분기의 끝(`saveConfig();`와 `rlen = snprintf(... "OK target %d %s (saved)" ...)` 다음)에 `else` 블록을 닫는 `}`를 추가한다. 기존 본문의 들여쓰기를 한 단계 늘리는 것을 잊지 말 것.
+
+대시보드는 이 응답을 그대로 `alert`로 띄우므로(`TargetCard.svelte`의 `postCmd(...).then(r=>alert(r))`) UI 변경은 필요 없다.
+
+- [ ] **Step 4: serial `target N on`에도 같은 가드를 넣는다**
+
+`src/main.cpp:1275` 부근의 serial 핸들러를 찾는다:
+
+```cpp
+    if (strcmp(action, "on") == 0) {
+      g_config.targets[idx].enabled = 1;
+      applyTargetConfigChange(idx);
+```
+
+다음으로 교체:
+
+```cpp
+    if (strcmp(action, "on") == 0) {
+      if (!targetConfigured(idx)) {
+        Serial.println(F("[ERR] Target not configured (set ip/port first)"));
+        return;
+      }
+      g_config.targets[idx].enabled = 1;
+      applyTargetConfigChange(idx);
+```
+
+`off` 핸들러는 그대로 둔다 — 끄는 것은 언제나 허용되어야 한다.
+
+- [ ] **Step 5: 빌드하고 native 테스트를 확인한다**
+
+Run: `pio run && pio test -e native`
+Expected: 둘 다 `[SUCCESS]` / `PASSED`
+
+- [ ] **Step 6: 가드가 양쪽 경로에 걸렸는지 확인한다**
+
+Run: `grep -n "targetConfigured" src/main.cpp`
+Expected: 정의 1곳 + UDP `on` 핸들러 1곳 + serial `on` 핸들러 1곳 = **3곳**. `off` 경로에는 하나도 없어야 한다.
+
+Run: `grep -n "10, 10, 204" src/main.cpp`
+Expected: 출력 없음 — 하드코딩된 운영 주소가 코드에서 완전히 사라졌다. (남아 있다면 Task 3의 fallback 기본값이나 이 task의 target 기본값 중 하나를 놓친 것이다.)
+
+- [ ] **Step 7: Commit**
+
+변경 파일: `src/main.cpp`
+
+커밋 메시지:
+
+```
+feat: ship with unconfigured targets, block enabling them
+
+기본 target이 실제 운영 주소(.184/.175)에 enabled=1이라, EEPROM이 빈
+새 보드는 전원을 넣는 순간 운영 target으로 송출을 시작했다. 교체 중이면
+기존 장비와 같은 port에 두 스트림이 섞여 tracking이 튄다. MAC/IP를
+분리해도 막히지 않는 응용 계층 충돌이다.
+
+이제 0.0.0.0:0 / off로 출고하고, 대시보드에서 지정해야 송출이 시작된다.
+기본값이 0이 되면서 생기는 "미설정 target 켜기" 경로는 UDP·serial 양쪽에
+targetConfigured() 가드로 막는다.
+```
+
+---
+
+### Task 6: 코드 주석에서 회귀 서사를 README로 옮긴다
+
+**Files:**
+- Modify: `src/main.cpp` (주석만)
+- Modify: `README.md` (버전 이력 표 주변)
+
+**Interfaces:**
+- Consumes: Task 1~5의 최종 코드 상태. 실행 코드는 **한 줄도 바꾸지 않는다**.
+- Produces: 없음.
+
+**배경:** `src/main.cpp`의 주석 중 상당량이 "언제 무엇이 고장났고 어떻게 고쳤는가"라는 사건 서사다. 이 내용은 이미 `README.md`의 버전 이력 표에 더 자세히 적혀 있어 **중복**이며, 1642줄 파일의 가독성을 떨어뜨린다.
+
+**판단 기준 — 이 둘을 혼동하지 말 것:**
+
+| 남긴다 (지우면 무슨 일이 나는가) | 옮긴다 (언제 어떻게 발견했는가) |
+|---|---|
+| `Ethernet.init(10); // W5500 CS = D10` | "v1.4에서 0.5s mute가 있었다" |
+| `const uint16_t ticks = ... // RTR 단위 = 100us` | "같은 switch의 Windows Server(.175)가 ~5초당 1회 ARP timeout 되던 문제" |
+| "static fallback 모드에서는 maintain()을 호출하지 않는다 (library가 static begin 후에도 _dhcp를 유지하는 버그)" | "v1.6 사전 commit 검증(11-agent)에서 발견" |
+
+현재 유효한 제약·이유·단위·핀번호는 전부 남긴다. 지운 뒤 누군가 "이 gate 왜 있지?" 하고 코드를 되돌릴 수 있는 주석은 남긴다 — 단, 사건 경위는 빼고 **제약만 한 줄로 압축**한다.
+
+- [ ] **Step 1: 옮길 대상을 식별한다**
+
+다음 위치의 주석을 읽고, 위 표의 기준으로 "사건 서사" 부분만 골라낸다:
+
+- `src/main.cpp:6-12` 파일 헤더의 per-socket/ARP 설명
+- `src/main.cpp:162-170` v1.4/v1.6 회귀 서사와 NIC 교체 절차
+- `src/main.cpp:195-199` DHCP maintain storm 발견 경위
+- `src/main.cpp:247-250` v1.6 per-socket MAC cache 언급
+- `src/main.cpp:455-460` ephemeral port가 50998/50999를 밟던 사건
+- `src/main.cpp:470-474` cached MAC 무효화 / NIC 교체 복구 경로
+
+각 위치에서 **제약 문장 한 줄은 남기고** 경위·버전·특정 장비명(`Windows Server(.175)` 등)·에이전트 검증 언급을 제거한다.
+
+- [ ] **Step 2: README에 설계 노트 절을 추가한다**
+
+`README.md`의 버전 이력 표 **바로 아래**에 새 절을 추가한다. Step 1에서 걷어낸 서사를 여기에 모으되, 표에 이미 있는 내용은 반복하지 말고 표가 설명하지 않는 "왜 그 구조가 되었는가"만 적는다:
+
+```markdown
+### 설계 노트 — 왜 이 구조인가
+
+코드 주석에는 현재 유효한 제약만 남기고, 아래의 경위는 여기에 모았습니다.
+
+- **target별 전용 socket (v1.6)**: 단일 socket으로 여러 target에 보내면 매 전송마다 W5500의 DIPR(목적지 IP 레지스터)이 교대되어, chip이 캐시한 MAC이 무효화되고 target당 초당 60회 ARP가 발생했습니다. 같은 switch에 있던 수신 PC 한 대가 ~5초에 한 번 ARP timeout을 겪던 원인이었습니다. socket을 target별로 고정하니 ARP는 target당 최초 1회로 줄었습니다. 대신 캐시된 MAC은 만료되지 않으므로 **수신측 NIC을 교체하면(같은 IP, 다른 MAC) 대시보드에서 해당 target을 off→on 토글하거나 컨버터를 재부팅해야** 합니다.
+- **DHCP maintain 유계화**: Ethernet 라이브러리의 `Dhcp.cpp`는 renew/rebind 실패 후 내부 state가 풀리지 않아, 이후 `maintain()` 호출마다 ~3초 블로킹 DISCOVER를 반복합니다(storm). DHCP 장애 동안 FreeD 송출이 사실상 멈추므로, 1초 gate + 실패 시 60초 holdoff로 "분당 한 번의 3초 공백"으로 묶었습니다. static fallback 모드에서는 아예 호출하지 않습니다 — 라이브러리가 static `begin()` 이후에도 `_dhcp`를 유지하는 버그가 있기 때문입니다.
+- **자체 ephemeral port 할당기**: 라이브러리 기본 할당기는 49152~65535를 순회하다 제어 port(50998)와 진단 port(50999)를 밟습니다. 그러면 원격 제어가 조용히 먹통이 되므로, 두 port를 건너뛰는 할당기를 따로 둡니다.
+- **serial 콘솔은 2단계 확인**: serial의 `target` 명령은 즉시 적용되지만 `save`를 쳐야 EEPROM에 남습니다. 오타 하나로 운영 설정이 영구히 바뀌지 않도록 **의도적으로** 그렇게 두었습니다(웹 UI에서 입력 후 OK를 눌러야 반영되는 것과 대칭). UDP 제어는 즉시 저장되는데, 이 비대칭은 버그가 아닙니다.
+```
+
+- [ ] **Step 3: 실행 코드가 바뀌지 않았는지 확인한다**
+
+Run: `git diff --stat src/main.cpp`
+그리고 `git diff src/main.cpp`를 읽어, **모든 변경 줄이 주석(`//`) 또는 빈 줄인지** 확인한다. 실행 코드가 한 줄이라도 바뀌었다면 되돌린다.
+
+Run: `pio run && pio test -e native`
+Expected: 둘 다 성공. 빌드 산출물 크기(Flash/RAM 사용량)가 Task 5 이후와 **동일**해야 한다 — 주석만 바꿨으므로 바이너리가 달라질 이유가 없다. 달라졌다면 실행 코드를 건드린 것이다.
+
+- [ ] **Step 4: Commit**
+
+변경 파일: `src/main.cpp`, `README.md`
+
+커밋 메시지:
+
+```
+docs: move regression narratives from code comments to README
+
+main.cpp 주석의 상당량이 "언제 무엇이 고장났고 어떻게 고쳤는가"라는
+사건 서사였고, README 버전 이력과 중복이었다. 현재 유효한 제약·단위·
+핀번호는 코드에 남기고 경위는 README 설계 노트로 옮긴다.
+
+실행 코드 무변경 — 빌드 산출물 크기 동일.
+```
+
+---
+
+### Task 7: 문서 갱신
 
 **Files:**
 - Modify: `README.md` (`README.md:19` 지능형 static fallback 항목, `README.md:233` status 명령 설명, `README.md:429` 진단 표)
 - Modify: `MANUAL.md` (`MANUAL.md:22` IP 설명, `MANUAL.md:179` IP 충돌 대응, `MANUAL.md:233` fallback IP 표)
 
 **Interfaces:**
-- Consumes: Task 2~4의 최종 동작. 문서와 코드가 어긋나면 안 되므로 이 task는 반드시 마지막에 한다.
+- Consumes: Task 2~6의 최종 동작. 문서와 코드가 어긋나면 안 되므로 이 task는 반드시 마지막에 한다. Task 6이 README에 "설계 노트" 절을 이미 추가했으므로, 그 절과 중복되는 내용을 여기서 또 쓰지 말 것.
 
 - [ ] **Step 1: README.md의 fallback 설명을 고친다**
 
@@ -736,6 +967,7 @@ status에 얹지 않은 이유: buildStatusLine()은 5초 주기 진단 broadcas
 ```markdown
 - **고유 MAC 자동 유도**: MAC을 하드코딩하지 않고 MCU의 factory unique ID에서 유도 — 같은 firmware를 여러 보드에 올려도 MAC이 겹치지 않아 장비 교체 중 신·구 장비가 함께 켜져 있어도 안전. `set mac`으로 명시 지정 가능(`000000000000`이면 유도로 복귀)
 - **지능형 static fallback**: DHCP 실패 시 **마지막 lease IP를 재사용** (EEPROM 기억). **known-good 주소가 없으면 fallback하지 않고** 30초마다 DHCP만 재시도 — 주소를 추측해 남의 장비 IP를 밟느니 대기한다. fallback 중 5분마다 DHCP 복귀 시도, **W5500 내장 IP 충돌 감지**(IR) 시 즉시 새 lease 요청 + 진단에 `CONFLICT` 표시
+- **미설정 상태로 출고**: target 기본값은 `0.0.0.0:0` / 전부 off — 새 보드는 **아무 데도 송출하지 않는 상태로 켜진다**. 대시보드에서 주소를 지정해야 시작하며, 미설정 target은 켤 수 없다(`ERR target N not configured`). 교체 중 새 장비가 운영 target에 끼어드는 것을 원천 차단
 ```
 
 - [ ] **Step 2: README.md의 제어 명령 설명에 info를 넣는다**
@@ -784,15 +1016,27 @@ status에 얹지 않은 이유: buildStatusLine()은 5초 주기 진단 broadcas
 ````markdown
 ### 장비를 새로 투입하거나 교체할 때
 
-새 보드는 꽂기만 하면 됩니다 — MAC은 MCU unique ID에서 자동 유도되고, fallback IP는 지난 lease가 없으면 아예 잡지 않으므로 기존 장비의 주소를 밟지 않습니다.
+새 보드는 꽂기만 하면 됩니다. 세 가지가 자동으로 안전한 쪽에 맞춰져 있습니다:
 
-교체 중 신·구 장비가 잠시 함께 켜져 있어도 네트워크 레벨 충돌은 없지만, **둘이 같은 target으로 동시에 FreeD를 쏘면** 받는 쪽에서 두 스트림이 한 port에 섞여 tracking이 튑니다. 한쪽 target을 꺼두세요:
+- **MAC**은 MCU unique ID에서 유도되어 보드마다 다릅니다 — 설정할 것이 없습니다.
+- **IP**는 DHCP로 받습니다. 지난 lease 기록이 없는 새 보드는 fallback 주소를 추측하지 않으므로, 기존 장비의 주소를 밟는 일이 없습니다.
+- **target은 비어 있습니다**(`0.0.0.0:0`, 전부 off). 즉 새 장비는 **아무 데도 송출하지 않는 상태로 켜집니다.**
+
+그래서 신·구 장비가 잠시 함께 켜져 있어도 서로 간섭하지 않습니다. 예전에는 새 보드가 전원을 넣는 순간 운영 target으로 쏘기 시작해, 수신측에 두 스트림이 섞여 tracking이 튀었습니다.
+
+새 장비가 살아 있는지 먼저 확인한 뒤(대시보드 드롭다운에서 새 IP를 골라 FreeD 수신 rate가 도는지 보세요), target을 지정하세요. 대시보드의 `Edit IP/Port` 버튼으로 주소를 넣으면 그 target이 함께 켜집니다.
+
+target을 지정하기 전에는 켤 수 없습니다 — 미설정 상태에서 켜려 하면 이렇게 거부됩니다:
+
+```
+ERR target 0 not configured (set ip/port first)
+```
+
+기존 장비의 송출을 멈추려면 그쪽 target을 끄세요:
 
 ```
 target 0 off
 ```
-
-대시보드의 target 토글로도 같은 일을 할 수 있습니다.
 
 새 장비의 MAC을 확인하려면 (라우터 너머에서도 됩니다):
 
@@ -803,8 +1047,10 @@ echo "info" | nc -u -w1 <장비-ip> 50998
 
 - [ ] **Step 6: 문서와 코드가 어긋나지 않는지 확인한다**
 
-Run: `grep -rn "10.10.204.123" README.md MANUAL.md`
-Expected: 예시 IP로 쓰인 곳만 남고, **"fallback 기본값"이나 "last resort"로 설명하는 문장은 하나도 남지 않는다.** 남아 있으면 그 문장을 고친다.
+Run: `grep -rn "10\.10\.204\." README.md MANUAL.md`
+Expected: 진단 라인 예시나 "이런 주소를 넣으세요" 같은 **예시**로 쓰인 곳만 남는다. 다음 서술이 하나라도 남아 있으면 고친다:
+- `10.10.204.123`을 **fallback 기본값 / last resort**로 설명하는 문장 (Task 3에서 제거됨)
+- `10.10.204.184` / `.175`를 **기본 target**으로 설명하는 문장 (Task 5에서 제거됨)
 
 - [ ] **Step 7: Commit**
 
@@ -832,10 +1078,18 @@ MAC 자동 유도와 fallback 정책 변경을 README/MANUAL에 반영하고,
 - [ ] ts5-server에서 원격 확인: `ssh ts5-t 'echo info | nc -u -w1 <새-장비-ip> 50998'`
 - [ ] 기존 장비와 동시 가동: 두 장비의 MAC이 다른지 ARP로 확인
       `ssh ts5-t 'ip neigh show | grep 02:f0:ed'` — 서로 다른 MAC 2개가 각각 다른 IP로 보여야 한다.
-- [ ] 기존 장비의 t0(`10.10.204.184:50001`)와 겹치지 않도록, 검증 중에는 새 장비의 target을 다른 주소로 두거나 꺼 둔다.
+- [ ] **target이 비어 있는지 확인**: `ssh ts5-t 'echo targets | nc -u -w1 <새-장비-ip> 50998'`
+      → 네 줄 모두 `off 0.0.0.0:0`이어야 한다. 하나라도 실주소가 보이면 Task 5가 적용되지 않았거나 EEPROM에 이전 설정이 남은 보드다.
+- [ ] **미설정 target 켜기가 거부되는지 확인**: `ssh ts5-t 'echo "target 0 on" | nc -u -w1 <새-장비-ip> 50998'`
+      → `ERR target 0 not configured (set ip/port first)`가 회신되어야 한다.
+- [ ] 대시보드에서 새 장비를 선택해 FreeD 수신 rate(fps)가 도는지 확인 — target이 비어 있어도 **수신은 정상이어야 한다**. 여기까지 확인한 뒤에 target을 지정한다.
+- [ ] 기존 장비의 t0(`10.10.204.184:50001`)로 전환할 준비가 되면: 기존 장비에서 `target 0 off` → 새 장비에서 대시보드 `Edit IP/Port`로 같은 주소 지정(지정과 동시에 켜진다). 두 장비가 동시에 같은 target으로 쏘는 순간이 없도록 **끄기를 먼저** 한다.
 
 ## 알려진 한계 (의도된 것)
 
 - **주소가 없는 동안은 진단 broadcast도 나가지 않는다.** DHCP를 한 번도 못 받은 새 장비는 대시보드에 보이지 않으며, serial 콘솔로만 상태를 알 수 있다. 주소를 추측하지 않기로 한 결정의 직접적인 대가다.
 - **기존 운영 장비의 MAC은 이 firmware를 올려도 바뀌지 않는다.** EEPROM에 명시 MAC(`02:F0:ED:CA:FE:01`)이 이미 저장돼 있고 `CONFIG_MAGIC`을 유지하기 때문이다. 의도된 동작이며, 그 덕에 target 설정과 lastDhcpIP도 함께 보존된다. 굳이 유도 MAC으로 바꾸려면 `set mac 000000000000` + `save` + `reboot`.
 - **`set mac`으로 지정한 값은 EEPROM에 남는다.** 유도로 되돌리려면 `set mac 000000000000`.
+- **새 보드는 target을 지정하기 전까지 아무것도 송출하지 않는다.** 의도된 동작이지만, "꽂았는데 왜 안 나오지"의 첫 번째 확인 지점이기도 하다. `targets` 명령이나 대시보드 target 카드로 확인한다.
+- **serial 콘솔의 `target` 설정은 `save`를 쳐야 EEPROM에 남는다.** UDP(대시보드) 경로는 즉시 저장된다. 이 비대칭은 의도된 설계이며(오타로 운영 설정이 영구히 바뀌는 것을 막는 확인 단계), 이 plan에서 바꾸지 않는다. 같은 이유로 serial `target N port`의 느슨한 `atoi` 파싱도 그대로 둔다.
+- **static fallback의 subnet mask는 `255.255.255.0` 고정, gateway는 `x.x.x.1` 가정이다.** 현재 장비 LAN이 `10.10.204.0/24`라 맞지만, 코드에 박힌 가정이다. DHCP 모드에서는 서버가 준 값을 쓰므로 fallback 경로에서만 영향이 있다. 고칠 경우 `lastDhcpIP`처럼 mask도 EEPROM에 기억하면 되고, `AppConfig.reserved[68]`에서 4바이트를 떼면 struct 크기가 유지되어 기존 EEPROM 이미지와 호환된다. 이 plan의 범위는 아니다.
