@@ -143,11 +143,14 @@ AppConfig g_config = {
                                           // 이미 그 IP를 쓰던 장비를 밟는다.
                                           // 운영자가 `set local`로만 지정한다.
     {
-        // targets[4] - 멀티 타겟 설정
-        {1, {10, 10, 204, 184}, 50001}, // Target 0: 활성화
-        {1, {10, 10, 204, 175}, 50001}, // Target 1: 활성화
-        {0, {10, 10, 204, 186}, 50001}, // Target 2: 비활성화
-        {0, {10, 10, 204, 187}, 50001}, // Target 3: 비활성화
+        // targets[4] — 전부 미설정(0.0.0.0:0, off)으로 출고한다. 실제 주소를
+        // 기본값으로 두면 EEPROM이 빈 새 보드가 전원을 넣는 순간 운영 target
+        // 으로 송출을 시작해, 교체 중인 기존 장비와 같은 port에 두 스트림이
+        // 섞인다. 대시보드에서 지정해야 송출이 시작된다.
+        {0, {0, 0, 0, 0}, 0}, // Target 0
+        {0, {0, 0, 0, 0}, 0}, // Target 1
+        {0, {0, 0, 0, 0}, 0}, // Target 2
+        {0, {0, 0, 0, 0}, 0}, // Target 3
     },
     {0, 0, 65445, 0x080000, 50000}, // Remap (disabled)
     {0, 0, 0, 0},                   // lastDhcpIP (미기록)
@@ -533,6 +536,15 @@ void openTargetSockets() {
   }
 }
 
+// target이 실제로 지정됐는지 — IP가 0.0.0.0이거나 port가 0이면 미설정이다.
+// 미설정 target을 켜면 socket은 열리지만 송신이 계속 실패해, 대시보드에
+// "ON인데 fail만 오르는" 상태로 보인다. on 경로에서 이걸 막는다.
+bool targetConfigured(uint8_t i) {
+  const TargetConfig &tc = g_config.targets[i];
+  return tc.port != 0 &&
+         (tc.ip[0] | tc.ip[1] | tc.ip[2] | tc.ip[3]) != 0;
+}
+
 // target 설정 변경(on/off/ip/port) 적용: 통계 초기화 + socket 재생성/해제.
 // IP가 바뀌면 다음 send에서 새 주소로 ARP가 일어난다.
 void applyTargetConfigChange(uint8_t i) {
@@ -790,11 +802,16 @@ void processControlPacket() {
              idx < MAX_TARGETS &&
              (strcmp(arg, "on") == 0 || strcmp(arg, "off") == 0)) {
     bool on = (strcmp(arg, "on") == 0);
-    g_config.targets[idx].enabled = on ? 1 : 0;
-    applyTargetConfigChange(idx); // 통계 초기화 + socket 재생성/해제
-    saveConfig();                 // 재부팅 후에도 유지
-    rlen = snprintf(reply, sizeof(reply), "OK target %d %s (saved)", idx,
-                    on ? "on" : "off");
+    if (on && !targetConfigured(idx)) {
+      rlen = snprintf(reply, sizeof(reply),
+                      "ERR target %d not configured (set ip/port first)", idx);
+    } else {
+      g_config.targets[idx].enabled = on ? 1 : 0;
+      applyTargetConfigChange(idx); // 통계 초기화 + socket 재생성/해제
+      saveConfig();                 // 재부팅 후에도 유지
+      rlen = snprintf(reply, sizeof(reply), "OK target %d %s (saved)", idx,
+                      on ? "on" : "off");
+    }
   } else {
     rlen = snprintf(reply, sizeof(reply),
                     "ERR cmds: status, targets, info, reboot, target <0-3> "
@@ -1389,6 +1406,10 @@ void processCommand(char *cmd) {
     }
 
     if (strcmp(action, "on") == 0) {
+      if (!targetConfigured(idx)) {
+        Serial.println(F("[ERR] Target not configured (set ip/port first)"));
+        return;
+      }
       g_config.targets[idx].enabled = 1;
       applyTargetConfigChange(idx);
       Serial.print(F("[OK] Target "));
