@@ -81,6 +81,9 @@ def test_bind_sets_reuseport(monkeypatch):
     monkeypatch.setattr(config, "DIAG_PORT", 55996)
     s = UdpBridge(State())._bind()
     try:
-        assert s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) == 1
+        # setsockopt's contract is "nonzero means on" — Linux reports 1 while
+        # macOS/BSD reports the option constant itself (0x0200), so a `== 1`
+        # assertion is a Linux-only assumption.
+        assert s.getsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT) != 0
     finally:
         s.close()
