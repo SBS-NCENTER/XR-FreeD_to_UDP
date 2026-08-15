@@ -101,7 +101,7 @@ pio device monitor -b 115200
 | 명령어 | 설명 |
 |--------|------|
 | `status` | 전체 상태 표시 |
-| `info` | MAC / 유도 MAC / IP / fallback 후보 조회 |
+| `info` | 펌웨어 버전 / MAC / 유도 MAC / IP / fallback 후보 조회 |
 | `help` 또는 `?` | 명령어 목록 |
 | `dump [n]` | n개 패킷 16진수 덤프 (기본 5개) |
 
@@ -243,11 +243,11 @@ Offset  Size  Field           Description
 
 `status` 명령은 타겟별 `TX stats [ok/fail/dropBusy/dropGate]`, W5500 RTR/RCR patch 적용 여부, DHCP renew 카운터도 표시합니다.
 
-`info` 명령은 장비의 MAC, 유도 MAC, 현재 IP, fallback 후보 주소를 한 줄로 회신합니다. 진단 broadcast에는 MAC이 실리지 않으므로, 라우터 너머 장비의 MAC은 이 명령으로 확인합니다.
+`info` 명령은 장비의 펌웨어 버전, MAC, 유도 MAC, 현재 IP, fallback 후보 주소를 한 줄로 회신합니다. 진단 broadcast에는 MAC이 실리지 않으므로, 라우터 너머 장비의 MAC은 이 명령으로 확인합니다.
 
 ```
-XRFD info mac=02f0edcafe01 derived=02f0ed7a3b91 ip=10.10.204.123 fb=10.10.204.123
-              └─ 실제 사용 중       └─ 이 보드의 UID에서 유도한 값
+XRFD info fw=1.7 mac=02f0edcafe01 derived=02f0ed7a3b91 ip=10.10.204.123 fb=10.10.204.123
+                     └─ 실제 사용 중       └─ 이 보드의 UID에서 유도한 값
 ```
 
 `mac`과 `derived`가 **다르면** EEPROM에 명시 MAC이 저장돼 있다는 뜻입니다(과거 장비이거나 `set mac`으로 지정한 경우). **같으면** 유도값을 그대로 쓰고 있는 것입니다.
@@ -295,7 +295,7 @@ echo "status"       | nc -u -w1 10.10.204.100 50998   # 상태 조회 (진단 �
 | 명령 | 동작 |
 |------|------|
 | `status` | 진단 라인 회신 |
-| `info` | MAC / 유도 MAC / IP / fallback 후보 회신 |
+| `info` | 펌웨어 버전 / MAC / 유도 MAC / IP / fallback 후보 회신 |
 | `targets` | 타겟 0~3 목록 (활성화/IP/port) |
 | `target <0-3> on\|off` | 활성화/비활성화 |
 | `target <0-3> ip <a.b.c.d>` | IP 변경 |
@@ -466,6 +466,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\xrfd_ctl.ps1 "status" -Ip 10.10
 | 1.4 | 2026-06 | (회수됨) 타겟별 전용 socket + 비동기 SEND 시도. RTR/RCR 주소 버그(#84) 우회로 "2Hz 버그"의 근본 원인은 해결했으나, 현장에서 0.5초 단위 간헐 수신 끊김이 두 차례 패치로도 해소되지 않아 v1.5에서 동기 구성으로 원복 (원인 미확정 — W5500 비표준 사용 의심). 이 버전에서 도입되어 유지되는 것: RTR/RCR raw 설정, escalating backoff, serial 처리 budget, 진단 broadcast, Target 1 → 10.10.204.175, CONFIG_MAGIC bump |
 | 1.5 | 2026-06 | 검증된 단일 socket 동기 송신으로 원복. 죽은 타겟 3중 방어: RTR/RCR raw 설정 + endPacket() 실패 시 wrap-safe escalating backoff(500ms→4s) + **UDP 원격 제어**(port 50998, 전체 명령 세트 + EEPROM 저장). 진단 broadcast에 ms/ip/타겟 상태 표시, 웹 dashboard·대화형 shell 도구 추가 |
 | 1.6 | 2026-06 | 타겟별 전용 socket (송신은 동기 유지): 단일 socket의 DIPR 교대가 만들던 타겟당 60 ARP/s 폭격 제거 — 같은 switch의 Windows Server(.175)가 ~5초당 1회 ARP timeout 되던 문제의 근본 수정. ARP timeout 60→80ms 완화. NIC 교체 시 절차: dashboard에서 타겟 off→on 토글 또는 reboot. **사전 commit 검증(11-agent) 후 강화**: DHCP rebind storm 유계화(blocker), ephemeral port가 50998/50999를 밟아 원격제어가 먹통 되는 결함 차단(자체 port 할당기), RTR patch 실패+전 타겟 사망 시 WDT 부트루프 방지(per-target refresh), 지능형 fallback(마지막 lease IP 재사용 + 5분 DHCP 재시도 + IP 충돌 감지 시 즉시 재시도), 진단 buffer 256B, cross-platform 도구(macOS/Linux bash+python) 추가 |
+| 1.7 | 2026-08 | **장비 정체성 분리** — 교체·이중화 시 두 대가 같은 LAN에서 MAC·IP·target 어느 층에서도 부딪히지 않게. MAC을 하드코딩 대신 **MCU factory unique ID에서 유도**(FNV-1a; `set mac`으로 명시 지정 가능, `000000000000`이면 유도 복귀) · fallback IP를 **추측하지 않음**(지난 DHCP lease 또는 `set local` 지정값만, 둘 다 없으면 주소를 잡지 않고 ~38초마다 DHCP 재시도 — 하드코딩 fallback이 하필 운영 IP와 같았다. 재시도 경로가 없으면 링크가 UP인 채 주소만 없을 때 영구 복구 불가라 무주소 재시도 분기 신설) · target **미설정 출고**(`0.0.0.0:0`/전부 off, 미설정 target 활성화는 거부 — MAC/IP 분리로는 막을 수 없는 응용계층 충돌) · **`info` 명령**(fw/mac/derived/ip/fb 회신; `status`는 진단 broadcast와 공유해 256B 중 여유가 9B뿐이라 별도 명령) · **`[env:uno_r4_wifi_debug]`**(serial 콘솔은 hot path 지터 때문에 production에서 컴파일 아웃) · 대시보드 다중 장치 드롭다운 + 이벤트 로그 절대날짜. `CONFIG_MAGIC`은 **의도적으로 유지** — 새 기본값이 EEPROM이 빈 보드에만 적용되어 운영 장비의 저장 설정이 보존된다 |
 
 ### 설계 노트 — 왜 이 구조인가
 

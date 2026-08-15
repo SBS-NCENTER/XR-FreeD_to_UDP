@@ -47,6 +47,12 @@
 // platformio.ini에서 Ethernet@2.0.2 정확히 고정 — 내부 헤더 의존이므로.
 #include <utility/w5100.h>
 
+// 펌웨어 버전. `info` 응답에 실어 원격으로 확인할 수 있게 한다 — 장비가 둘
+// 이상이 되면 "이쪽은 새 펌웨어인가"를 물을 수단이 필요하고, USB를 꽂아
+// 확인하는 것은 운영 중인 장비에 쓸 방법이 못 된다.
+// README "버전 이력" 표와 함께 올릴 것.
+constexpr char FW_VERSION[] = "1.7";
+
 // ============================================================================
 // 디버그 모드 설정
 // 0: 프로덕션 (시리얼 출력 OFF)
@@ -654,8 +660,9 @@ int buildStatusLine(char *buf, size_t size) {
 // derived를 항상 함께 실어서, 장비를 멈추지 않고도 유도가 동작하는지 볼 수 있고
 // 두 대의 derived를 비교해 보드별 고유성을 확인할 수 있다.
 //
-// 예: XRFD info mac=02f0edcafe01 derived=02f0ed7a3b91 ip=10.10.204.123 fb=10.10.204.123
-//     최악 길이 85B (14+12 +9+12 +4+15 +4+15) — reply[256]/line[128] 모두 여유.
+// 예: XRFD info fw=1.7 mac=02f0edcafe01 derived=02f0ed7a3b91 ip=10.10.204.123 fb=10.10.204.123
+//     최악 길이 ~97B (13+8 +5+12 +9+12 +4+15 +4+15, fw 8자 가정)
+//     — reply[256]/line[128] 모두 여유.
 int buildInfoLine(char *buf, size_t size) {
   static const uint8_t kZero[4] = {0, 0, 0, 0};
   IPAddress lip = Ethernet.localIP();
@@ -666,8 +673,9 @@ int buildInfoLine(char *buf, size_t size) {
     fb = g_config.localIP;
 
   int len = snprintf(buf, size,
-                     "XRFD info mac=%02x%02x%02x%02x%02x%02x "
+                     "XRFD info fw=%s mac=%02x%02x%02x%02x%02x%02x "
                      "derived=%02x%02x%02x%02x%02x%02x ip=%u.%u.%u.%u fb=",
+                     FW_VERSION,
                      g_effectiveMac[0], g_effectiveMac[1], g_effectiveMac[2],
                      g_effectiveMac[3], g_effectiveMac[4], g_effectiveMac[5],
                      g_derivedMac[0], g_derivedMac[1], g_derivedMac[2],

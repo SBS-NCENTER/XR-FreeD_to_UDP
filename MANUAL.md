@@ -132,7 +132,7 @@ echo "target 1 off" | nc -u -w1 10.10.204.123 50998
 | 명령 | 동작 (설정 변경은 EEPROM 자동 저장) |
 |------|------|
 | `status` | 진단 라인 회신 |
-| `info` | MAC / 유도 MAC / IP / fallback 후보 회신 |
+| `info` | 펌웨어 버전 / MAC / 유도 MAC / IP / fallback 후보 회신 |
 | `targets` | 타겟 목록 (활성화/IP/port) |
 | `target <0-3> on` / `off` | 활성화 / 비활성화 |
 | `target <0-3> ip <a.b.c.d>` | IP 변경 |
