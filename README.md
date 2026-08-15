@@ -101,7 +101,7 @@ pio device monitor -b 115200
 | 명령어 | 설명 |
 |--------|------|
 | `status` | 전체 상태 표시 |
-| `info` | MAC/IP/fallback 후보 조회 |
+| `info` | MAC / 유도 MAC / IP / fallback 후보 조회 |
 | `help` 또는 `?` | 명령어 목록 |
 | `dump [n]` | n개 패킷 16진수 덤프 (기본 5개) |
 
@@ -237,13 +237,22 @@ Offset  Size  Field           Description
 |------|------|
 | PPS | Packets Per Second (초당 패킷 수) |
 | BPS | Bytes Per Second (초당 바이트 수) |
-| ERR | 체크섬 에러 수 (초당) |
+| ERR | 체크섬 에러 수 (**부팅 후 누적** — PPS/BPS와 달리 매초 리셋되지 않는다. 부팅 직후 스트림 중간부터 읽기 시작해 1건이 잡히는 것은 정상이고, 그 값이 **더 이상 늘지 않으면** 결선이 깨끗한 것) |
 | TXF | 누적 UDP send 실패 수 (전 타겟 합, ARP timeout 등) |
 | SYNC | 동기화 상태 (HUNT: 헤더 탐색, COLL: 수집 중) |
 
 `status` 명령은 타겟별 `TX stats [ok/fail/dropBusy/dropGate]`, W5500 RTR/RCR patch 적용 여부, DHCP renew 카운터도 표시합니다.
 
-`info` 명령은 장비의 MAC, 현재 IP, fallback 후보 주소를 한 줄로 회신합니다 (`XRFD info mac=... ip=... fb=...`). 진단 broadcast에는 MAC이 실리지 않으므로, 라우터 너머 장비의 MAC은 이 명령으로 확인합니다.
+`info` 명령은 장비의 MAC, 유도 MAC, 현재 IP, fallback 후보 주소를 한 줄로 회신합니다. 진단 broadcast에는 MAC이 실리지 않으므로, 라우터 너머 장비의 MAC은 이 명령으로 확인합니다.
+
+```
+XRFD info mac=02f0edcafe01 derived=02f0ed7a3b91 ip=10.10.204.123 fb=10.10.204.123
+              └─ 실제 사용 중       └─ 이 보드의 UID에서 유도한 값
+```
+
+`mac`과 `derived`가 **다르면** EEPROM에 명시 MAC이 저장돼 있다는 뜻입니다(과거 장비이거나 `set mac`으로 지정한 경우). **같으면** 유도값을 그대로 쓰고 있는 것입니다.
+
+`derived`는 EEPROM 설정과 무관하게 **항상 계산**되어 실립니다. 덕분에 운영 중인 장비를 멈추거나 MAC을 바꿔보지 않고도 유도가 동작하는지 확인할 수 있고, **장비를 추가할 때 두 대의 `derived`를 비교하는 것만으로 보드별 고유성이 확정**됩니다. 한 대만으로는 비교 대상이 없어 고유성을 증명할 수 없습니다.
 
 ### 운영 진단 broadcast (production에서도 동작)
 
@@ -286,7 +295,7 @@ echo "status"       | nc -u -w1 10.10.204.100 50998   # 상태 조회 (진단 �
 | 명령 | 동작 |
 |------|------|
 | `status` | 진단 라인 회신 |
-| `info` | MAC/IP/fallback 후보 회신 |
+| `info` | MAC / 유도 MAC / IP / fallback 후보 회신 |
 | `targets` | 타겟 0~3 목록 (활성화/IP/port) |
 | `target <0-3> on\|off` | 활성화/비활성화 |
 | `target <0-3> ip <a.b.c.d>` | IP 변경 |

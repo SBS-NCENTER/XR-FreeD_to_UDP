@@ -429,15 +429,24 @@ void saveConfig() {
 // EEPROM에 명시 MAC이 있으면(과거 장비, 혹은 `set mac`) 그쪽이 이긴다.
 uint8_t g_effectiveMac[6];
 
+// UID에서 유도한 MAC. EEPROM에 명시 MAC이 있어 실제로는 쓰이지 않는 경우에도
+// 항상 계산해 둔다 — `info`로 노출해서, 운영 중인 장비를 멈추거나 MAC을 바꿔
+// 보지 않고도 "이 보드가 유도하면 무슨 값이 나오는지" 확인할 수 있게 하려는
+// 것이다. 예비 장비를 붙일 때 두 대의 derived를 비교하면 그것만으로 보드별
+// 고유성이 확정된다 (한 대만으로는 비교 대상이 없어 증명할 수 없다).
+uint8_t g_derivedMac[6];
+
 void resolveMac() {
+  const bsp_unique_id_t *uid = R_BSP_UniqueIdGet();
+  deriveMacFromUid(uid->unique_id_bytes, sizeof(uid->unique_id_bytes),
+                   g_derivedMac);
+
   static const uint8_t kZero[6] = {0, 0, 0, 0, 0, 0};
   if (memcmp(g_config.mac, kZero, 6) != 0) {
     memcpy(g_effectiveMac, g_config.mac, 6);
     return;
   }
-  const bsp_unique_id_t *uid = R_BSP_UniqueIdGet();
-  deriveMacFromUid(uid->unique_id_bytes, sizeof(uid->unique_id_bytes),
-                   g_effectiveMac);
+  memcpy(g_effectiveMac, g_derivedMac, 6);
 }
 
 // ============================================================================
@@ -639,7 +648,14 @@ int buildStatusLine(char *buf, size_t size) {
 
 // `info` 응답 — 장비 identity 한 줄. 진단 broadcast와 달리 요청이 있을 때만
 // 만들어지므로 buildStatusLine()의 256B 예산과 무관하다.
-// 예: XRFD info mac=02f0edcafe01 ip=10.10.204.123 fb=10.10.204.123
+//
+// mac = 실제로 wire에 나가는 값, derived = UID에서 유도한 값. 둘이 다르면
+// EEPROM에 명시 MAC이 저장돼 있다는 뜻이다(과거 장비 또는 `set mac`).
+// derived를 항상 함께 실어서, 장비를 멈추지 않고도 유도가 동작하는지 볼 수 있고
+// 두 대의 derived를 비교해 보드별 고유성을 확인할 수 있다.
+//
+// 예: XRFD info mac=02f0edcafe01 derived=02f0ed7a3b91 ip=10.10.204.123 fb=10.10.204.123
+//     최악 길이 85B (14+12 +9+12 +4+15 +4+15) — reply[256]/line[128] 모두 여유.
 int buildInfoLine(char *buf, size_t size) {
   static const uint8_t kZero[4] = {0, 0, 0, 0};
   IPAddress lip = Ethernet.localIP();
@@ -650,9 +666,12 @@ int buildInfoLine(char *buf, size_t size) {
     fb = g_config.localIP;
 
   int len = snprintf(buf, size,
-                     "XRFD info mac=%02x%02x%02x%02x%02x%02x ip=%u.%u.%u.%u fb=",
+                     "XRFD info mac=%02x%02x%02x%02x%02x%02x "
+                     "derived=%02x%02x%02x%02x%02x%02x ip=%u.%u.%u.%u fb=",
                      g_effectiveMac[0], g_effectiveMac[1], g_effectiveMac[2],
                      g_effectiveMac[3], g_effectiveMac[4], g_effectiveMac[5],
+                     g_derivedMac[0], g_derivedMac[1], g_derivedMac[2],
+                     g_derivedMac[3], g_derivedMac[4], g_derivedMac[5],
                      lip[0], lip[1], lip[2], lip[3]);
   if (len > 0 && len < (int)size) {
     if (fb == NULL)
