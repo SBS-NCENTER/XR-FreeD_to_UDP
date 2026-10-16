@@ -25,7 +25,7 @@ cd "$(dirname "$0")/.."
 # count.
 scripts=()
 while IFS= read -r -d '' f; do
-  if [[ $(head -n 1 -- "$f" 2>/dev/null) =~ ^#!(/[^[:space:]]*/|[[:space:]]*/usr/bin/env[[:space:]]+)(ba|da)?sh([[:space:]]|$) ]]; then scripts+=("$f"); fi
+  if [[ $(head -n 1 -- "$f" 2>/dev/null | tr -d "\0") =~ ^#!(/[^[:space:]]*/|[[:space:]]*/usr/bin/env[[:space:]]+)(ba|da)?sh([[:space:]]|$) ]]; then scripts+=("$f"); fi
 done < <(git ls-files -z | sort -z)
 echo "shellcheck: ${#scripts[@]} scripts"
 if [ "${#scripts[@]}" -gt 0 ]; then

@@ -57,7 +57,7 @@ When no session is live in a lane's worktree, and the operator granted it in
 their own prompt:
 
 1. The tmux session is the operator's, its lanes' window `lanes`, a lane's
-   worktree `~/projects/<repo>-lane-a` or `<repo>-lane-b`. With no window:
+   worktree the one `CLAUDE.md`'s host notes name for it. With no window:
    `tmux new-window -d -P -F '#{pane_id}' -t <session>: -n lanes -c <worktree>`;
    with one, the new pane beside the last:
    `tmux split-window -h -d -P -F '#{pane_id}' -t <session>:lanes -c <worktree>`.

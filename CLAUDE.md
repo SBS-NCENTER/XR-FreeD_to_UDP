@@ -145,11 +145,11 @@ route around them.
 ## Host notes
 
 - `chunbay-x86`: the sessions' host. The worktrees are
-  `~/workspaces/SBS/XR-FreeD_to_UDP` (the primary, on `production`),
-  `XR-FreeD_to_UDP-seat`, `XR-FreeD_to_UDP-lane-a` and `XR-FreeD_to_UDP-lane-b` beside it; the
-  session root is `~/workspaces/SBS/draft/XR-FreeD_to_UDP` and the memory store
-  `~/obsidian-vault/SBS/.claude/memory/XR-FreeD_to_UDP/`, both named in each
-  worktree's `.claude/settings.local.json` (chun-harness
+  `~/workspaces/SBS/XR-FreeD_to_UDP/production` (the primary, on
+  `production`), `seat`, `lane-a` and `lane-b` beside it in that folder; the
+  session root is `~/workspaces/SBS/XR-FreeD_to_UDP/draft` and the memory
+  store `~/obsidian-vault/SBS/.claude/memory/XR-FreeD_to_UDP/`, both named in
+  each worktree's `.claude/settings.local.json` (chun-harness
   `templates/settings.local.example.json`).
 - **Each worktree builds where its part builds**: `pio test -e native` and
   `pio run` in the worktree (`uv tool install platformio` put `pio` on this
