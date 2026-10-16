@@ -3,6 +3,7 @@
 형식:  <ts> | <service> | <EVENT> | <detail>
 경로:  <log_dir>/<YYYY-MM-DD>.txt   (append-only, best-effort)
 """
+
 import datetime
 from pathlib import Path
 

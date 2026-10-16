@@ -1,0 +1,37 @@
+# The project's check, run by a GitHub-hosted runner for every pull request
+# and for every push to main or production. No session starts it and none
+# waits on it: opening the pull request or pushing is what starts it, and the
+# result shows on the pull request. The job's name is `check`:
+# scripts/land-prs.sh waits for a check of that name.
+#
+# It runs scripts/check.sh on the commit GitHub hands it: for a pull request
+# the branch merged into its base, main, as main stands now. The runner's
+# own toolchains are used and nothing is cached between runs. A project with
+# a self-hosted runner names its label in runs-on instead.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, production]
+
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: tools
+        run: |
+          sudo apt-get install -y -qq shfmt
+          curl -LsSf https://astral.sh/uv/install.sh | sh && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          pip install --quiet --user platformio && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: check
+        run: scripts/check.sh

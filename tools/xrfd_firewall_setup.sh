@@ -10,30 +10,30 @@
 set -u
 
 case "$(uname -s)" in
-Darwin)
-  fw_state=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null)
-  echo "macOS Application Firewall: ${fw_state:-unknown}"
-  echo " - If disabled: nothing to do."
-  echo " - If enabled: run the dashboard once and click 'Allow' on the popup,"
-  echo "   or pre-allow python3 (admin):"
-  echo "     sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add \"\$(command -v python3)\""
-  echo "     sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp \"\$(command -v python3)\""
-  ;;
-Linux)
-  if command -v ufw >/dev/null 2>&1 && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-    sudo ufw allow 50999/udp comment "XRFD diag"
-    sudo ufw allow 10000/tcp comment "XRFD dashboard"
-    echo "ufw rules added (UDP 50999, TCP 10000)."
-  elif command -v firewall-cmd >/dev/null 2>&1 && sudo firewall-cmd --state >/dev/null 2>&1; then
-    sudo firewall-cmd --permanent --add-port=50999/udp
-    sudo firewall-cmd --permanent --add-port=10000/tcp
-    sudo firewall-cmd --reload
-    echo "firewalld rules added (UDP 50999, TCP 10000)."
-  else
-    echo "No active host firewall detected (ufw/firewalld) - nothing to do."
-  fi
-  ;;
-*)
-  echo "Unsupported OS: $(uname -s) - configure UDP 50999 inbound + TCP 10000 inbound manually."
-  ;;
+  Darwin)
+    fw_state=$(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate 2>/dev/null)
+    echo "macOS Application Firewall: ${fw_state:-unknown}"
+    echo " - If disabled: nothing to do."
+    echo " - If enabled: run the dashboard once and click 'Allow' on the popup,"
+    echo "   or pre-allow python3 (admin):"
+    echo "     sudo /usr/libexec/ApplicationFirewall/socketfilterfw --add \"\$(command -v python3)\""
+    echo "     sudo /usr/libexec/ApplicationFirewall/socketfilterfw --unblockapp \"\$(command -v python3)\""
+    ;;
+  Linux)
+    if command -v ufw >/dev/null 2>&1 && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
+      sudo ufw allow 50999/udp comment "XRFD diag"
+      sudo ufw allow 10000/tcp comment "XRFD dashboard"
+      echo "ufw rules added (UDP 50999, TCP 10000)."
+    elif command -v firewall-cmd >/dev/null 2>&1 && sudo firewall-cmd --state >/dev/null 2>&1; then
+      sudo firewall-cmd --permanent --add-port=50999/udp
+      sudo firewall-cmd --permanent --add-port=10000/tcp
+      sudo firewall-cmd --reload
+      echo "firewalld rules added (UDP 50999, TCP 10000)."
+    else
+      echo "No active host firewall detected (ufw/firewalld) - nothing to do."
+    fi
+    ;;
+  *)
+    echo "Unsupported OS: $(uname -s) - configure UDP 50999 inbound + TCP 10000 inbound manually."
+    ;;
 esac

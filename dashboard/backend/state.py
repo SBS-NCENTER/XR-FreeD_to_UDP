@@ -1,4 +1,5 @@
 """Thread-safe shared dashboard state (ported from tools/xrfd_dashboard.ps1)."""
+
 import threading
 import time
 from collections import deque
@@ -10,9 +11,9 @@ from . import config
 class State:
     def __init__(self):
         self._lock = threading.RLock()
-        self.device_ip = ""           # currently *selected* device (detail below is its)
-        self.last_seen = 0.0          # wall time (time.time()) of last diag
-        self._devices = {}            # ip -> wall time of that device's last diag
+        self.device_ip = ""  # currently *selected* device (detail below is its)
+        self.last_seen = 0.0  # wall time (time.time()) of last diag
+        self._devices = {}  # ip -> wall time of that device's last diag
         self.up = 0
         self.rx = 0
         self.fps = 0.0
@@ -20,8 +21,8 @@ class State:
         self.dhcp_fail = 0
         self.rtr = "?"
         self.conflict = False
-        self.diag_state = {}          # "0" -> {state,ok,fail,skip}
-        self.targets = []             # [{n,on,ip,port}]
+        self.diag_state = {}  # "0" -> {state,ok,fail,skip}
+        self.targets = []  # [{n,on,ip,port}]
         self._log = deque(maxlen=config.LOG_MAXLEN)
         self._prev_rx = -1
         self._prev_ms = -1
@@ -30,8 +31,9 @@ class State:
 
     def add_log(self, kind, msg):
         with self._lock:
-            self._log.appendleft({"t": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                  "k": kind, "m": msg})
+            self._log.appendleft(
+                {"t": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "k": kind, "m": msg}
+            )
 
     def update_from_diag(self, parsed, src_ip):
         if parsed is None:
@@ -41,7 +43,7 @@ class State:
             # Every device that broadcasts stays in the registry so the UI can
             # offer it; only the selected one drives the detail fields below.
             if src_ip not in self._devices:
-                self.add_log("info", "device found: %s" % src_ip)
+                self.add_log("info", f"device found: {src_ip}")
             self._devices[src_ip] = now
 
             if not self.device_ip:
@@ -52,7 +54,7 @@ class State:
             up, rx, ms = parsed["up"], parsed["rx"], parsed["ms"]
             # real reboot: up AND rx both reset (millis wrap resets up only)
             if up < self.up and rx < self.rx:
-                self.add_log("warn", "DEVICE REBOOTED (uptime reset: %ds -> %ds)" % (self.up, up))
+                self.add_log("warn", f"DEVICE REBOOTED (uptime reset: {self.up}s -> {up}s)")
                 self._prev_rx = -1
                 self._prev_ms = -1
 
@@ -105,7 +107,7 @@ class State:
             self._prev_rx = -1
             self._prev_ms = -1
             self._prev_time = None
-            self.add_log("info", "switched to %s" % ip)
+            self.add_log("info", f"switched to {ip}")
             return True
 
     def snapshot(self):
@@ -115,15 +117,27 @@ class State:
                 age = int(min(999999, now - self.last_seen))
             else:
                 age = 999999
-            devices = [{"ip": ip,
-                        "ageSec": int(min(999999, now - seen)),
-                        "live": (now - seen) <= config.DEVICE_LIVE_S}
-                       for ip, seen in sorted(self._devices.items())]
+            devices = [
+                {
+                    "ip": ip,
+                    "ageSec": int(min(999999, now - seen)),
+                    "live": (now - seen) <= config.DEVICE_LIVE_S,
+                }
+                for ip, seen in sorted(self._devices.items())
+            ]
             tl = []
             for t in self.targets:
                 d = self.diag_state.get(str(t["n"]))
-                entry = {"n": t["n"], "on": t["on"], "ip": t["ip"], "port": t["port"],
-                         "state": "off", "ok": 0, "fail": 0, "skip": 0}
+                entry = {
+                    "n": t["n"],
+                    "on": t["on"],
+                    "ip": t["ip"],
+                    "port": t["port"],
+                    "state": "off",
+                    "ok": 0,
+                    "fail": 0,
+                    "skip": 0,
+                }
                 if d:
                     entry.update(state=d["state"], ok=d["ok"], fail=d["fail"], skip=d["skip"])
                 tl.append(entry)
@@ -132,15 +146,20 @@ class State:
                 "devices": devices,
                 "ageSec": age,
                 "live": bool(self.device_ip) and age <= config.DEVICE_LIVE_S,
-                "up": self.up, "rx": self.rx, "fps": self.fps,
-                "dhcpOk": self.dhcp_ok, "dhcpFail": self.dhcp_fail,
-                "rtr": self.rtr, "conflict": self.conflict,
+                "up": self.up,
+                "rx": self.rx,
+                "fps": self.fps,
+                "dhcpOk": self.dhcp_ok,
+                "dhcpFail": self.dhcp_fail,
+                "rtr": self.rtr,
+                "conflict": self.conflict,
                 "targets": tl,
                 "log": list(self._log)[:40],
             }
 
     def subscribe(self):
         import queue
+
         q = queue.Queue(maxsize=10)
         with self._lock:
             self._subscribers.add(q)
@@ -158,4 +177,4 @@ class State:
             try:
                 q.put_nowait(snap)
             except Exception:
-                pass   # slow/full consumer: drop this update, never block the bridge
+                pass  # slow/full consumer: drop this update, never block the bridge

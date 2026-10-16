@@ -1,0 +1,46 @@
+{
+  "attribution": {
+    "sessionUrl": false
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git merge --no-edit origin/main)",
+      "Bash(git merge -q --no-edit origin/main)",
+      "Bash(git merge origin/main)"
+    ]
+  },
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "-S",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/user_prompt_submit.py"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Agent|Task",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "-S",
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre_tool_use.py"
+            ],
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "effortLevel": "high"
+}

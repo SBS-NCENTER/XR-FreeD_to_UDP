@@ -1,0 +1,142 @@
+{
+  "rule": "git-push-door",
+  "reads": "a parse of the Bash command",
+  "cases": [
+    {
+      "name": "deny-plain-push",
+      "command": "git push origin main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "Every form of git push is denied; the door does not judge the push, it moves it to the script."
+    },
+    {
+      "name": "deny-push-with-pinned-lease",
+      "command": "git push --force-with-lease=feat/x:3f2a9c1 origin feat/x",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "A pinned lease is still a push, and this door is about where a push is run from rather than whether it is safe: a rewritten branch goes through scripts/publish.sh --rebased."
+    },
+    {
+      "name": "deny-push-refspec",
+      "command": "git push origin \"${H}:refs/heads/main\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "The safest spelling of a push is still a push."
+    },
+    {
+      "name": "deny-push-delete",
+      "command": "git push origin --delete feat/x",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "A deletion is a push, and the script has a mode for it that checks the ref existed and is gone."
+    },
+    {
+      "name": "deny-push-after-a-wrapper",
+      "command": "sudo -u ncenter git push origin main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Wrappers are stripped before the command is read, as they are for every other rule."
+    },
+    {
+      "name": "deny-push-with-git-global-options",
+      "command": "git -C /home/ncenter/projects/godo-harness push origin main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "The subcommand is found past git's own options."
+    },
+    {
+      "name": "deny-push-second-in-a-chain",
+      "command": "git status --short && git push origin main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Every simple command is read, not only the first."
+    },
+    {
+      "name": "deny-push-inside-a-live-heredoc",
+      "command": "cat <<EOF\n$(git push origin main)\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "An unquoted heredoc's substitution really runs, so the push is real."
+    },
+    {
+      "name": "allow-the-publish-script",
+      "command": "scripts/publish.sh 774297d feat/issue-238-hooks-and-skills",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The script is the way through the door. Its own push is a child process and never reaches a PreToolUse hook."
+    },
+    {
+      "name": "allow-push-in-quoted-text",
+      "command": "echo 'git push origin main'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A quoted string is text; the command is echo."
+    },
+    {
+      "name": "allow-push-in-a-quoted-heredoc",
+      "command": "cat <<'EOF' > notes.md\ngit push origin main\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A quoted delimiter makes the body inert, so nothing runs."
+    },
+    {
+      "name": "allow-push-in-a-commit-message",
+      "command": "git commit -m \"do not git push by hand\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The word push appears in an argument, not as a subcommand."
+    },
+    {
+      "name": "allow-git-log-mentioning-push",
+      "command": "git log --grep=push --oneline -5",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A different subcommand that merely names this one."
+    },
+    {
+      "name": "allow-push-like-subcommand",
+      "command": "git push-nonexistent origin main",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The subcommand is compared whole, so a longer name is a different command."
+    },
+    {
+      "name": "allow-ls-remote",
+      "command": "git ls-remote origin feat/x",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Asking the server what it holds is not writing to it, and the script does exactly this afterwards."
+    },
+    {
+      "name": "allow-unparseable-command",
+      "command": "git push origin \"unterminated",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A parse that will not resolve allows, like every other rule here -- and the door is no exception, however important it is."
+    },
+    {
+      "name": "deny-push-to-a-build-clone-ci-ref",
+      "command": "git push -q ts5-server:Workspaces/godo-lidar-tracker HEAD:refs/ci/front",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A push to another clone's refs/ci is a push like any other. A lane's commit reaches its build worktree through scripts/compute-host.py sync, whose push is a child process this never sees."
+    }
+  ]
+}

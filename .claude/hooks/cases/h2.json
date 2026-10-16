@@ -1,0 +1,349 @@
+{
+  "rule": "zsh-pipestatus",
+  "cases": [
+    {
+      "name": "design-deny-braced-after-pipe",
+      "command": "cargo test 2>&1 | tail -5; echo \"exit=${PIPESTATUS[0]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "The bash spelling inside double quotes after a pipeline expands to nothing in zsh."
+    },
+    {
+      "name": "design-deny-unbraced",
+      "command": "make | tee log; echo $PIPESTATUS",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "The unbraced name is the same parameter zsh does not have."
+    },
+    {
+      "name": "design-deny-unquoted-heredoc",
+      "command": "cat <<EOF\n${PIPESTATUS[0]}\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "zsh expands an unquoted heredoc body, so the bash spelling there is empty too."
+    },
+    {
+      "name": "design-allow-bash-c-single-quoted",
+      "command": "bash -c 'cargo test | tail; echo ${PIPESTATUS[0]}'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "Inside single quotes zsh hands the text to bash untouched, and bash has the array."
+    },
+    {
+      "name": "design-allow-lowercase-zsh-array",
+      "command": "false | true; echo \"$pipestatus[1]\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The lowercase zsh array is the correct spelling and a different parameter."
+    },
+    {
+      "name": "design-allow-grep-word",
+      "command": "grep -rn PIPESTATUS doc/",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The word without a dollar sign is a search pattern, not an expansion."
+    },
+    {
+      "name": "design-allow-quoted-heredoc-script",
+      "command": "cat <<'EOF' > s.sh\necho ${PIPESTATUS[0]}\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A quoted heredoc writes the text into a script unexpanded."
+    },
+    {
+      "name": "corpus-deny-clippy-exit",
+      "command": "cargo clippy -p godo-console --all-targets -- -D warnings 2>&1 | grep -E '^(error|warning)' -A4 | head -20; echo \"exit=${PIPESTATUS[0]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real clippy gate whose exit code was read through the bash spelling after a three-stage pipeline."
+    },
+    {
+      "name": "corpus-deny-after-assignment-prefix",
+      "command": "CARGO_TARGET_DIR=/home/ncenter/projects/godo-lidar-tracker/target cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tail -12; echo \"GATE2 clippy exit=${PIPESTATUS[0]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real gate run with a leading CARGO_TARGET_DIR assignment, whose exit was read as ${PIPESTATUS[0]}."
+    },
+    {
+      "name": "corpus-deny-default-value-form",
+      "command": "cd /home/ncenter/projects/godo-console-spa\ntimeout 180 ./scripts/open-work.sh --check 2>&1 | grep -E \"rows, mean|Next free|path token|agree|no row\"\necho \"=== exit: ${PIPESTATUS[0]:-?} ===\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real ${PIPESTATUS[0]:-?}, where the default hides the empty value behind a question mark."
+    },
+    {
+      "name": "corpus-deny-after-timeout-wrapper",
+      "command": "timeout 300 cargo fmt -p godo-localizer-lidar -- --check 2>&1 | head -30; echo \"FMT-EXIT:${PIPESTATUS[0]}\"; echo \"--- probe residue check ---\"; grep -n \"TEMPORARY T4 PROBE\\|t4_probe_numbers\\|REMOVE BEFORE HANDOVER\" bins/godo-localizer-lidar/src/compute.rs || echo \"none\"; echo \"--- git status ---\"; git status --short",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real fmt gate run under timeout whose exit was printed as FMT-EXIT:${PIPESTATUS[0]}."
+    },
+    {
+      "name": "corpus-deny-default-dollar-question",
+      "command": "cd /home/ncenter/projects/godo-rustdoc-scope\nS=/tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/cc31851e-f42e-4f05-837b-e05a28f8c847/scratchpad\n: > \"$S/gates.log\"\necho \"### fmt\" | tee -a \"$S/gates.log\"\ncargo fmt --all --check 2>&1 | tee -a \"$S/gates.log\" | tail -5\necho \"fmt exit: ${PIPESTATUS[0]:-$?}\" | tee -a \"$S/gates.log\"\necho \"### clippy\" | tee -a \"$S/gates.log\"\ncargo clippy --workspace --all-targets -- -D warnings 2>&1 | tee -a \"$S/gates.log\" | tail -8\necho \"clippy done\" | tee -a \"$S/gates.log\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real ${PIPESTATUS[0]:-$?}, which silently prints the exit of tail instead of the gate."
+    },
+    {
+      "name": "corpus-deny-inside-brace-group",
+      "command": "{\n  echo \"### npm run check\"; npm run check 2>&1; echo \"EXIT=${PIPESTATUS[0]}\"\n  echo; echo \"### npm run lint\"; npm run lint 2>&1; echo \"EXIT=$?\"\n  echo; echo \"### npx vitest run src/lib/map/map.test.ts   (this task's own suite, in isolation)\"\n  npx vitest run src/lib/map/map.test.ts 2>&1 | tail -7\n  echo; echo \"### npm run test   (whole suite)\"; npm run test 2>&1 | tail -7\n  echo; echo \"### npm run build\"; npm run build 2>&1 | tail -11\n} > \"$OUT/gates.txt\" 2>&1",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real ${PIPESTATUS[0]} inside a brace group whose output is redirected to a file."
+    },
+    {
+      "name": "corpus-deny-single-quotes-inside-double",
+      "command": "echo \"shell: $ZSH_VERSION${BASH_VERSION:+ (bash $BASH_VERSION)}\"\necho \"--- probe: a command exiting 42, piped to tail ---\"\n( exit 42 ) | tail -1\necho \"\\$?               = '$?'\"\necho \"\\${PIPESTATUS[0]} = '${PIPESTATUS[0]}'\"\necho \"\\${PIPESTATUS[1]} = '${PIPESTATUS[1]}'\"\necho \"\\${pipestatus[1]} = '${pipestatus[1]}'\"\necho \"--- and the unpiped form ---\"\n( exit 42 )\necho \"unpiped \\$?       = '$?'\"\necho \"--- numeric test on the empty value ---\"\nx=\"${PIPESTATUS[0]}\"\nif [ \"$x\" -ne 0 ] 2>/dev/null; then echo \"would report FAIL\"; else echo \"test did not fire (status $?)\"; fi",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real probe where the escaped \\${PIPESTATUS[0]} is literal but the one wrapped in single quotes inside double quotes still expands."
+    },
+    {
+      "name": "corpus-deny-word-pipestatus-nearby",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\necho \"=== cargo fmt --all --check ===\"\ncargo fmt --all --check\necho \"fmt exit: $?\"\necho\necho \"=== cargo clippy --workspace --all-targets -- -D warnings ===\"\ncargo clippy --workspace --all-targets -- -D warnings 2>&1 | tail -40\necho \"clippy exit (from pipestatus): ${PIPESTATUS[0]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real gate message that says pipestatus in prose and then expands the bash spelling."
+    },
+    {
+      "name": "corpus-deny-shell-probe",
+      "command": "echo \"shell: $0  ZSH_VERSION=${ZSH_VERSION:-none}  BASH_VERSION=${BASH_VERSION:-none}\"\necho \"--- does PIPESTATUS exist here? ---\"\n( exit 42 ) | tail -1; echo \"dollar-question=[$?]  PIPESTATUS0=[${PIPESTATUS[0]}]  pipestatus1=[${pipestatus[1]}]\"\necho \"--- is pipestatus volatile? ---\"\n( exit 42 ) | tail -1; echo \"first read: [${pipestatus[1]}]\"; echo \"second read: [${pipestatus[1]}]\"\necho \"--- the form I actually used: redirect, not pipe ---\"\n( exit 42 ) > /dev/null 2>&1; echo \"EXIT=$?\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real probe that expands ${PIPESTATUS[0]} beside the correct ${pipestatus[1]}; the rule denies the shape whatever the intent."
+    },
+    {
+      "name": "corpus-allow-lowercase-braced",
+      "command": "cd /home/ncenter/projects/godo-console-spa/web\nnpx vitest run src/features/dashboard/dashboard.test.ts 2>&1 | tail -30\necho \"EXIT=${pipestatus[1]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real ${pipestatus[1]} read, the correct zsh spelling."
+    },
+    {
+      "name": "corpus-allow-lowercase-with-default",
+      "command": "cargo clippy --workspace --all-targets -- -D warnings 2>&1 | tail -3; echo \"CLIPPY exit: ${pipestatus[1]:-see above}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real ${pipestatus[1]:-see above}, the zsh array with a default."
+    },
+    {
+      "name": "corpus-allow-grep-pattern",
+      "command": "grep -n 'tail\\|PIPESTATUS\\|pipestatus' NEXT_SESSION.md | head",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real search whose single-quoted pattern names PIPESTATUS."
+    },
+    {
+      "name": "corpus-allow-log-pickaxe-single-quoted",
+      "command": "cd /home/ncenter/projects/godo-harness && for s in 'git switch <branch>' 'never `git checkout`' 'force-with-lease=<branch>:<the hash' 'git branch -d <branch>' 'Deletes regardless' 'PIPESTATUS'; do printf '%-45s ' \"$s\"; git log --reverse -S\"$s\" --format='%h %ad' --date=format:'%Y-%m-%dT%H:%M' -- CLAUDE.md | head -1; done; git log --reverse -S'PIPESTATUS' --format='%h %ad %s' --date=format:'%Y-%m-%dT%H:%M' -- NEXT_SESSION.md .claude/memory RUST_FOUNDATION.md doc | head -3",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real history search with PIPESTATUS in single quotes, both as a list item and after -S."
+    },
+    {
+      "name": "corpus-allow-quoted-heredoc-commit-message",
+      "command": "git status --short && git add bins/godo-console/tests/status.rs && git commit -q -F - <<'EOF'\ntest(issue#134): wire the three captured bodies, so the fixtures assert something\n\nGates, all four run to completion and their exit codes read directly rather\nthan through a pipeline — `${PIPESTATUS[0]}` is empty in zsh, which is\nEOF\ngit log --oneline -2",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real commit message in a quoted heredoc that mentions `${PIPESTATUS[0]}` inside backticks."
+    },
+    {
+      "name": "corpus-allow-single-quoted-zsh-probe",
+      "command": "cd /tmp && zsh -f -c 'H=abc123; echo \"1 unquoted: \" $H:refs/heads/main; echo \"2 dquoted: $H:refs/heads/main\"; echo \"3 braced: ${H}:refs/heads/main\"; F=dir/file.txt; echo \"4 :t \" $F:t; echo \"5 :foo \" $H:foo; echo \"6 :x \" $H:xyz; echo \"7 :a \" $H:abc; echo \"8 :q \" $H:qq; echo \"9 :u \" $H:up' 2>&1; echo \"exit=$?\"; zsh -f -c 'L=\"a b c\"; for x in $L; do echo \"item=$x\"; done; set -- $L; echo \"argc=$#\"; false | true; echo \"PIPESTATUS=[${PIPESTATUS[0]}] pipestatus=[$pipestatus[1]]\"' 2>&1",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real zsh -f -c probe whose ${PIPESTATUS[0]} sits inside single quotes."
+    },
+    {
+      "name": "corpus-allow-python-heredoc-regex",
+      "command": "cd /mnt/build/hook-corpus && python3 - <<'PYEOF'\nimport json, re, collections\nfrom pathlib import Path\nrows = [json.loads(l) for l in open(\"matches/pipestatus.jsonl\")]\n# how did PIPESTATUS appear: which spelling, and what did the command print for it\nspell = collections.Counter()\nempty_printed = 0\nfor r in rows:\n    for m in re.findall(r\"\\$\\{?PIPESTATUS[^ \\\"'\\n]{0,6}\", r[\"command\"]):\n        spell[m] += 1\n    if re.search(r\"(exit|EXIT|status|rc|=)\\s*[=:]?\\s*(\\n|$|\\s{2}|\\])\", r[\"result_head\"] or \"\"):\n        empty_printed += 1\nprint(spell.most_common(8))\nprint(\"sessions:\", len({r[\"session\"] for r in rows}), \"first:\", min(r[\"ts\"] for r in rows), \"last:\", max(r[\"ts\"] for r in rows))\nby_day = collections.Counter(r[\"ts\"][:10] for r in rows)\nprint(sorted(by_day.items()))\nfor r in rows[:6] + rows[-4:]:\n    print(\"=\" * 90)\n    print(r[\"ts\"], r[\"session\"][:8])\n    cmd = r[\"command\"]\n    k = cmd.find(\"PIPESTATUS\")\n    print(\"CMD…\", cmd[max(0, k-200):k+60].replace(\"\\n\", \" ⏎ \"))\n    res = r[\"result_head\"] or \"\"\n    print(\"RES…\", res[-250:].replace(\"\\n\", \" ⏎ \"))\nPYEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real Python analysis in a quoted heredoc whose regular expression and strings name PIPESTATUS."
+    },
+    {
+      "name": "corpus-allow-lowercase-after-push",
+      "command": "git push --force-with-lease origin feat/issue-175-journal-panel 2>&1 | tail -4; echo \"PUSH_EXIT=${pipestatus[1]}\"; echo \"=== ahead of main ===\"; git rev-list --left-right --count origin/main...HEAD",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real push whose exit is read with the correct ${pipestatus[1]}."
+    },
+    {
+      "name": "author-gating-bash-shell",
+      "command": "cargo test 2>&1 | tail -5; echo \"exit=${PIPESTATUS[0]}\"",
+      "shell": "/bin/bash",
+      "expect": "allow",
+      "source": "author",
+      "why": "The same shape is silent when SHELL is /bin/bash, where PIPESTATUS exists."
+    },
+    {
+      "name": "author-deny-unbraced-subscript",
+      "command": "cargo build | tail -3; echo \"exit=$PIPESTATUS[1]\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "An unbraced name followed by a subscript is still the missing parameter."
+    },
+    {
+      "name": "author-deny-all-elements",
+      "command": "echo ${PIPESTATUS[@]}",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "The all-elements subscript is a braced PIPESTATUS form."
+    },
+    {
+      "name": "author-length-form",
+      "command": "echo \"${#PIPESTATUS[@]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author+settled",
+      "why": "Measured on this host: the length form answers 0, so the parameter is read and the answer is wrong. The match is on the parameter named, not on the text the expansion begins with."
+    },
+    {
+      "name": "author-allow-longer-name-unbraced",
+      "command": "echo $PIPESTATUS_SAVED",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A longer name that begins with PIPESTATUS is a different parameter."
+    },
+    {
+      "name": "author-braced-longer-name",
+      "command": "echo ${PIPESTATUS_SAVED}",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author+settled",
+      "why": "A longer name is a different parameter, and it holds its value."
+    },
+    {
+      "name": "author-allow-bash-c-escaped",
+      "command": "bash -c \"cargo test | tail; echo \\${PIPESTATUS[0]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The backslash keeps the dollar sign literal in zsh, so bash receives its own working spelling."
+    },
+    {
+      "name": "author-deny-bash-c-double-quoted",
+      "command": "bash -c \"cargo test | tail; echo ${PIPESTATUS[0]}\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "zsh expands the double-quoted argument first, so bash receives an empty string where the array was meant."
+    },
+    {
+      "name": "author-deny-bash-unquoted-heredoc",
+      "command": "bash <<EOF\ncargo test | tail -3\necho \"exit=${PIPESTATUS[0]}\"\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "An unquoted heredoc fed to bash is expanded by zsh before bash reads it."
+    },
+    {
+      "name": "author-allow-bash-quoted-heredoc",
+      "command": "bash <<'EOF'\ncargo test | tail -3\necho \"exit=${PIPESTATUS[0]}\"\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A quoted heredoc fed to bash reaches bash unexpanded."
+    },
+    {
+      "name": "author-allow-comment",
+      "command": "cargo test | tail -3 # read ${PIPESTATUS[0]} here in bash",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Text after a word-initial # is a comment and is not expanded."
+    },
+    {
+      "name": "author-allow-single-quoted-echo",
+      "command": "echo '${PIPESTATUS[0]}'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Single quotes stop expansion."
+    },
+    {
+      "name": "author-deny-command-substitution",
+      "command": "x=$(cargo test | tail -1; echo ${PIPESTATUS[0]})",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A command substitution body is expanded."
+    },
+    {
+      "name": "author-deny-backticks",
+      "command": "echo `echo $PIPESTATUS`",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A backtick body is expanded."
+    },
+    {
+      "name": "author-allow-assignment-and-unset",
+      "command": "unset PIPESTATUS; PIPESTATUS=0",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Naming the parameter to assign or unset it is not an expansion."
+    },
+    {
+      "name": "author-deny-cmdsub-inside-dquote",
+      "command": "echo \"$(cargo test | tail -1; echo ${PIPESTATUS[0]})\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A command substitution inside double quotes is still expanded."
+    },
+    {
+      "name": "author-allow-backslash-dollar",
+      "command": "echo \\$PIPESTATUS",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A backslash before the dollar sign makes it literal."
+    },
+    {
+      "name": "author-deny-dash-heredoc",
+      "command": "cat <<-EOF\n\techo ${PIPESTATUS[0]}\n\tEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "The <<- form with an unquoted delimiter expands its body."
+    },
+    {
+      "name": "author-allow-ansi-c",
+      "command": "echo $'${PIPESTATUS[0]}'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "ANSI-C quoting expands no parameters."
+    }
+  ]
+}

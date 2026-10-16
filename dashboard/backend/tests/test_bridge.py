@@ -1,9 +1,9 @@
 import socket
 import time
 
+from backend import config
 from backend.state import State
 from backend.udp_bridge import UdpBridge
-from backend import config
 
 DEV_LINE = b"XRFD up=1 ms=1000 ip=127.0.0.1 rx=0 dhcp=0/0 rtr=Y"
 
@@ -32,7 +32,7 @@ def test_bridge_survives_garbage_packet(monkeypatch):
     bridge.start()
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.sendto(b"\xff\xff not xrfd", ("127.0.0.1", 55998))   # must not crash thread
+        s.sendto(b"\xff\xff not xrfd", ("127.0.0.1", 55998))  # must not crash thread
         time.sleep(0.3)
         s.sendto(DEV_LINE, ("127.0.0.1", 55998))
         for _ in range(20):
@@ -59,6 +59,7 @@ def test_send_command_roundtrip(monkeypatch):
     def responder():
         data, addr = dev.recvfrom(4096)
         dev.sendto(b"ok:" + data, addr)
+
     threading.Thread(target=responder, daemon=True).start()
     try:
         reply = bridge.send_command("status")
@@ -68,7 +69,7 @@ def test_send_command_roundtrip(monkeypatch):
 
 
 def test_send_command_no_device_returns_none():
-    st = State()           # device_ip == ""
+    st = State()  # device_ip == ""
     assert UdpBridge(st).send_command("status") is None
 
 
@@ -77,6 +78,7 @@ def test_bind_sets_reuseport(monkeypatch):
     can coexist on the diag port while the dashboard is running."""
     if not hasattr(socket, "SO_REUSEPORT"):
         import pytest
+
         pytest.skip("SO_REUSEPORT not available on this platform")
     monkeypatch.setattr(config, "DIAG_PORT", 55996)
     s = UdpBridge(State())._bind()
@@ -95,25 +97,31 @@ def test_targets_refetched_immediately_after_device_switch(monkeypatch):
     from backend.udp_bridge import UdpBridge
 
     st = State()
-    st.update_from_diag(protocol.parse_diag(
-        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
-    st.update_from_diag(protocol.parse_diag(
-        "XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.124")
+    st.update_from_diag(
+        protocol.parse_diag("XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"),
+        "10.10.204.123",
+    )
+    st.update_from_diag(
+        protocol.parse_diag("XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"),
+        "10.10.204.124",
+    )
 
     br = UdpBridge(st)
     calls = []
-    monkeypatch.setattr(br, "send_command",
-                        lambda cmd, timeout=None: calls.append((cmd, st.device_ip))
-                        or "t0 on 10.10.204.184:50001")
+    monkeypatch.setattr(
+        br,
+        "send_command",
+        lambda cmd, timeout=None: calls.append((cmd, st.device_ip)) or "t0 on 10.10.204.184:50001",
+    )
 
-    br._maybe_refresh_targets()                 # first poll for .123
+    br._maybe_refresh_targets()  # first poll for .123
     assert calls == [("targets", "10.10.204.123")]
 
-    br._maybe_refresh_targets()                 # within the refresh window: no-op
+    br._maybe_refresh_targets()  # within the refresh window: no-op
     assert len(calls) == 1
 
     st.select_device("10.10.204.124")
-    br._maybe_refresh_targets()                 # switch must bypass the timer
+    br._maybe_refresh_targets()  # switch must bypass the timer
     assert calls[-1] == ("targets", "10.10.204.124")
     assert len(calls) == 2
 
@@ -127,10 +135,14 @@ def test_stale_targets_reply_discarded_after_switch_during_send(monkeypatch):
     from backend.udp_bridge import UdpBridge
 
     st = State()
-    st.update_from_diag(protocol.parse_diag(
-        "XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.123")
-    st.update_from_diag(protocol.parse_diag(
-        "XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"), "10.10.204.124")
+    st.update_from_diag(
+        protocol.parse_diag("XRFD up=1 ms=1000 ip=10.10.204.123 rx=0 dhcp=0/0 rtr=Y"),
+        "10.10.204.123",
+    )
+    st.update_from_diag(
+        protocol.parse_diag("XRFD up=1 ms=1000 ip=10.10.204.124 rx=0 dhcp=0/0 rtr=Y"),
+        "10.10.204.124",
+    )
 
     br = UdpBridge(st)
 
@@ -142,5 +154,5 @@ def test_stale_targets_reply_discarded_after_switch_during_send(monkeypatch):
 
     monkeypatch.setattr(br, "send_command", fake_send_command)
 
-    br._maybe_refresh_targets()                 # polls for .123; switch happens mid-call
-    assert st.snapshot()["targets"] == []        # stale reply discarded, not stored
+    br._maybe_refresh_targets()  # polls for .123; switch happens mid-call
+    assert st.snapshot()["targets"] == []  # stale reply discarded, not stored

@@ -1,0 +1,381 @@
+{
+  "rule": "zsh-unsplit-variable",
+  "cases": [
+    {
+      "name": "design-deny-set-dash-bare",
+      "command": "set -- $spec; echo $1 $2",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "set -- with one unquoted variable and nothing after it exists only to split, which zsh does not do."
+    },
+    {
+      "name": "design-deny-for-bare-after-assignment",
+      "command": "pids=$(pgrep x); for p in $pids; do kill $p; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "A for list that is exactly one unquoted variable runs once in zsh whatever the variable holds."
+    },
+    {
+      "name": "design-allow-set-split-flag",
+      "command": "set -- ${=spec}",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The = flag asks zsh to split, which is the rewrite."
+    },
+    {
+      "name": "design-allow-set-quoted",
+      "command": "set -- \"$spec\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A quoted variable says one argument was meant."
+    },
+    {
+      "name": "design-allow-for-line-split-flag",
+      "command": "for p in ${(f)pids}; do :; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The f flag splits on lines, which is the rewrite."
+    },
+    {
+      "name": "design-allow-for-two-items",
+      "command": "for ref in origin/main $B; do git log -1 $ref; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A list with more than one item is not the shape."
+    },
+    {
+      "name": "design-allow-for-cmdsub",
+      "command": "for f in $(git ls-files); do :; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "zsh does split an unquoted command substitution."
+    },
+    {
+      "name": "design-allow-for-quoted-at",
+      "command": "for x in \"$@\"; do :; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "Quoted $@ is the positional parameters, one word each."
+    },
+    {
+      "name": "corpus-deny-set-in-loop-semicolon",
+      "command": "cd /home/ncenter/projects/godo-rustdoc-scope && for spec in \"crates/godo-localization/src/particle.rs 60 80\" \"crates/godo-localization/src/gate.rs 616 640\"; do set -- $spec; echo \"════ $1 : $2-$3 ════\"; sed -n \"$2,$3p\" \"$1\"; echo; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real set -- $spec inside a loop body, which gave one argument where three were read."
+    },
+    {
+      "name": "corpus-deny-set-on-own-line",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\nn=$(grep -n '^## 4\\.\\|^## 5\\.' doc/2026-09-11-memory-store-measurement.md | head -2 | cut -d: -f1 | tr '\\n' ' ')\nset -- $n\nsed -n \"${1},$(( ${2:-999} - 1 ))p\" doc/2026-09-11-memory-store-measurement.md | grep -E '^#{2,4} |^\\*\\*|^- \\*\\*' | cut -c1-108",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real set -- $n on its own line, followed by reads of $1 and $2."
+    },
+    {
+      "name": "corpus-deny-set-many-pairs",
+      "command": "cd /home/ncenter/projects/godo-rustdoc-scope && for r in \"87 101\" \"181 187\" \"432 457\" \"623 631\" \"1146 1148\" \"1939 1943\" \"1945 1957\" \"3791 3796\" \"3929 3939\" \"4271 4280\" \"8260 8267\" \"14093 14105\" \"14469 14479\"; do set -- $r; echo \"=== $1-$2 ===\"; sed -n \"$1,$2p\" bins/godo-localizer-lidar/src/compute.rs | sed 's|^ *\\(///\\|//!\\) \\?||'; echo; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real set -- $r repeated over thirteen line ranges."
+    },
+    {
+      "name": "corpus-deny-for-over-ls-output",
+      "command": "cd /home/ncenter/projects/godo-console-spa\nls web/src/features/map/\necho \"=== Map.svelte / MapScreen: the layout markup ===\"\nF=$(ls web/src/features/map/*.svelte | head -5)\nfor f in $F; do echo \"--- $f ($(wc -l < $f) lines) ---\"; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real for f in $F whose variable held several file names from ls."
+    },
+    {
+      "name": "corpus-deny-for-over-unit-list",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker; S=\"-24h\"\nUNITS=\"godo-localizer-lidar godo-freed-rt godo-irq-pin godo-console\"\nown=(); life=()\nfor u in $UNITS; do own+=(\"_SYSTEMD_UNIT=$u.service\"); life+=(\"UNIT=$u.service\"); done\necho \"=== 우리 유닛의 자기 출력 (_SYSTEMD_UNIT) ===\"\nfor u in $UNITS; do printf '  %-24s %s\\n' \"$u\" \"$(journalctl _SYSTEMD_UNIT=$u.service --since $S --no-pager -o cat 2>/dev/null | wc -l)\"; done\necho\necho \"=== 우리 유닛의 라이프사이클 (UNIT=) ===\"\nfor u in $UNITS; do printf '  %-24s %s\\n' \"$u\" \"$(journalctl UNIT=$u.service --since $S --no-pager -o cat 2>/dev/null | wc -l)\"; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real for u in $UNITS over a space-separated string of unit names."
+    },
+    {
+      "name": "corpus-deny-set-then-printf",
+      "command": "cd /home/ncenter/projects/godo-rustdoc-scope\nfor loc in \"bins/godo-localizer-lidar/src/compute.rs 1327\" \"bins/godo-localizer-lidar/src/compute.rs 3366\" \"bins/godo-localizer-lidar/src/compute.rs 3915\"; do\n  set -- $loc\n  printf '\\n=== %s:%s ===\\n' \"$1\" \"$2\"\n  sed -n \"$(($2-1)),$(($2+4))p\" \"$1\" | cut -c1-94\ndone\nprintf '\\n=== http.rs D86 ===\\n'\ngrep -n 'D86' bins/godo-console/src/features/backup/http.rs | head -3 | cut -c1-110",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real set -- $loc on its own line inside a multi-line loop."
+    },
+    {
+      "name": "corpus-deny-for-inside-function",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\nprobe() {  # $1 = process name to look for\n  pids=$(pgrep -x \"$1\" 2>/dev/null)\n  if [ -n \"$pids\" ]; then\n    for p in $pids; do\n      printf 'BUSY %s cwd=%s cmd=' \"$p\" \"$(readlink /proc/$p/cwd)\"\n      tr '\\0' ' ' < /proc/$p/cmdline; echo\n    done\n    return 1\n  fi\n  echo \"CLEAR\"\n  return 0\n}\necho \"### control: force the BUSY branch with a name that is certainly running ###\"\nprobe zsh | head -3; echo \"  -> exit was $?  (must be 1)\"\necho\necho \"### the real question ###\"\nprobe cargo; echo \"  -> exit was $?  (0 = clear to start a full pass)\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real for p in $pids inside a shell function body."
+    },
+    {
+      "name": "corpus-deny-after-quoted-python-heredoc",
+      "command": "python3 - <<'PY'\nprint(\"I2 applied\")\nPY\necho \"=== verify each target line is the right heading ===\"\nfor pair in \"376 D12\" \"383 D13\" \"360 D11\" \"342 D10\" \"400 D15\"; do set -- $pair; printf \"%s -> \" \"$2\"; sed -n \"$1p\" doc/2026-08-29-cold-writer-design.md; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real set -- $pair that follows a quoted Python heredoc, so the lexer must resume after the delimiter."
+    },
+    {
+      "name": "corpus-deny-for-inside-nested-substitution",
+      "command": "T2DIRS=\"crates/godo-localization crates/godo-kernels bins/godo-localizer-lidar bins/godo-localize-probe\"\nfor t in T2 T3; do\n  eval \"d=\\\"\\$${t}DIRS\\\"\"\n  src=$(eval \"grep -rwil oracle --include='*.rs' $(for x in $d; do echo -n \"$x/src \"; done) 2>/dev/null\" | wc -l)\ndone",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real for x in $d inside a command substitution inside a double-quoted eval argument inside another substitution, which zsh still runs."
+    },
+    {
+      "name": "corpus-deny-for-over-file-string",
+      "command": "FILES=\"RUST_FOUNDATION.md deploy/sysctl/95-godo-rt.conf doc/2026-08-27-hot-path-design.md doc/2026-08-31-console-layout-plan.md doc/issue_registry.md\"\ntotal=0\nfor f in $FILES; do n=$(grep -c -F \"$OLD\" \"$f\"); total=$((total+n)); printf \"%-45s %d\\n\" \"$f\" \"$n\"; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real for f in $FILES over a string of five paths."
+    },
+    {
+      "name": "corpus-deny-probe-of-the-defect",
+      "command": "echo \"=== verify: does zsh split a command substitution but not a parameter expansion? ===\"\nn=0; for p in $(printf '111\\n222\\n333\\n'); do n=$((n+1)); done; echo \"  for p in \\$(printf ...)   -> $n iterations\"\npids=$(printf '111\\n222\\n333\\n')\nn=0; for p in $pids; do n=$((n+1)); done; echo \"  for p in \\$pids            -> $n iterations\"\nn=0; for p in ${=pids}; do n=$((n+1)); done; echo \"  for p in \\${=pids}         -> $n iterations\"\necho\necho \"=== gate result ===\"\nf=/tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/2971c14a-9652-483f-8742-bb97290a7f10/tasks/b5xm330z2.output\ngrep -E '^EXIT_' \"$f\" 2>/dev/null || echo \"(still running)\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real probe that demonstrates one iteration with for p in $pids; the rule denies the shape whatever the intent."
+    },
+    {
+      "name": "corpus-for-over-zsh-array",
+      "command": "names=(${(f)\"$(cat /tmp/claude-1000/-home-ncenter-projects-godo-console-spa/ac2a3a48-1cdd-4a07-aa28-9b95cc73fec2/scratchpad/retired.txt)\"})\necho \"tripwire — names in array: ${#names[@]}\"\nocc_md=0; occ_nomd=0\nfor n in $names; do\n  base=${n%.md}\n  a=$(git grep -o -F -- \"$n\" main -- ':!.claude/memory/' 2>/dev/null | wc -l)\n  b=$(git grep -o -F -- \"$base\" main -- ':!.claude/memory/' 2>/dev/null | wc -l)\n  occ_md=$((occ_md + a)); occ_nomd=$((occ_nomd + b))\n  [[ $a -ne $b ]] && echo \"  DIFFERS: $base — with .md: $a, without: $b\"\ndone\necho \"occurrences WITH .md:    $occ_md\"\necho \"occurrences WITHOUT .md: $occ_nomd\"\necho \"--- distinct files, without .md ---\"\nfor n in $names; do git grep -l -F -- \"${n%.md}\" main -- ':!.claude/memory/' 2>/dev/null; done | sed 's|^main:||' | sort -u | wc -l",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus+settled",
+      "why": "Measured on this host: an unquoted zsh ARRAY does expand element by element, so this loop is correct. The rule does not fire when the same command assigns that name as an array, which is decidable from the command alone."
+    },
+    {
+      "name": "corpus-allow-single-quoted-zsh-probe",
+      "command": "cd /tmp && zsh -f -c 'H=abc123; echo \"1 unquoted: \" $H:refs/heads/main; echo \"2 dquoted: $H:refs/heads/main\"; echo \"3 braced: ${H}:refs/heads/main\"; F=dir/file.txt; echo \"4 :t \" $F:t; echo \"5 :foo \" $H:foo; echo \"6 :x \" $H:xyz; echo \"7 :a \" $H:abc; echo \"8 :q \" $H:qq; echo \"9 :u \" $H:up' 2>&1; echo \"exit=$?\"; zsh -f -c 'L=\"a b c\"; for x in $L; do echo \"item=$x\"; done; set -- $L; echo \"argc=$#\"; false | true; echo \"PIPESTATUS=[${PIPESTATUS[0]}] pipestatus=[$pipestatus[1]]\"' 2>&1",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real for x in $L and set -- $L inside a single-quoted zsh -f -c argument."
+    },
+    {
+      "name": "corpus-allow-single-quoted-sh-c",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\nD=/tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/2971c14a-9652-483f-8742-bb97290a7f10/scratchpad\necho \"=== instrument re-check: does the sequence argument reach the loop? ===\"\nsh -c 'SEQ=\"2 3\"; FIRST=5; i=$((FIRST-1)); for n in $SEQ; do i=$((i+1)); echo \"  would run: n=$n run$i\"; done'\necho \"=== host before the extension ===\"\necho \"  $(date '+%H:%M:%S')  temp $(awk '{printf \"%.1f\", $1/1000}' /sys/class/thermal/thermal_zone0/temp)C  load $(cut -d' ' -f1 /proc/loadavg)\"\necho \"  cargo:\"; pgrep -a -x cargo; echo \"  (nothing above = none)\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real for n in $SEQ inside a single-quoted sh -c program, where sh splits it."
+    },
+    {
+      "name": "corpus-allow-split-flag-in-function",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\nprobe() {  # $1 = process name; prints BUSY lines and returns 1, or CLEAR and returns 0\n  pids=$(pgrep -x \"$1\" 2>/dev/null)\n  if [ -n \"$pids\" ]; then\n    for p in ${=pids}; do          # ${=...}: zsh does not word-split otherwise (memory §1)\n      printf 'BUSY %s cwd=%s cmd=' \"$p\" \"$(readlink /proc/$p/cwd 2>/dev/null)\"\n      tr '\\0' ' ' < /proc/$p/cmdline 2>/dev/null; echo\n    done\n    return 1\n  fi\n  echo \"CLEAR\"\n  return 0\n}\necho \"### control: force BUSY with a name certainly running -- NO PIPE (memory §5) ###\"\nprobe zsh > /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/2971c14a-9652-483f-8742-bb97290a7f10/scratchpad/p.txt\necho \"  exit=$?  (must be 1)\"\nhead -2 /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/2971c14a-9652-483f-8742-bb97290a7f10/scratchpad/p.txt\necho \"  lines listed: $(wc -l < /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/2971c14a-9652-483f-8742-bb97290a7f10/scratchpad/p.txt)\"\necho\necho \"### control: force CLEAR with a name certainly NOT running ###\"\nprobe definitely-not-a-real-process-xyz\necho \"  exit=$?  (must be 0)\"\necho\necho \"### the real question ###\"\nprobe cargo\necho \"  exit=$?\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real for p in ${=pids} inside a function, with a comment that mentions the flag."
+    },
+    {
+      "name": "corpus-allow-script-in-quoted-heredoc",
+      "command": "cat > $SP/phase1.sh <<'SHEOF'\n#!/bin/bash\nfor spec in \"c23 $C23 180 1 20260825\" \"c23 $C23 180 2 77000000\" \\\n            \"c23 $C23 20 1 20260825\"  \"c23 $C23 20 2 77000000\" \\\n            \"c25 $C25 180 1 20260825\" \"c25 $C25 180 2 77000000\" \\\n            \"c25 $C25 20 1 20260825\"  \"c25 $C25 20 2 77000000\" ; do\n  set -- $spec\n  run \"$1-s$3-b$4\" $PROBE --capture \"$2\" --map $MAP --path both --seeds 8 \\\n      --seed-base \"$5\" --hint-sigma-yaw-deg \"$3\"\ndone\nSHEOF\nchmod +x $SP/phase1.sh && echo written && cat /proc/loadavg",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real set -- $spec inside a bash script written through a quoted heredoc, which zsh never runs."
+    },
+    {
+      "name": "corpus-allow-sh-script-in-quoted-heredoc",
+      "command": "cat > \"$SP/premerge.sh\" <<'SCRIPT_EOF'\n#!/bin/sh\n  for N in $OUT; do echo \"     DUPLICATE  $N defined more than once in $F\"; DUP=1; done\nSCRIPT_EOF\nchmod +x \"$SP/premerge.sh\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real for N in $OUT inside an sh script written through a quoted heredoc."
+    },
+    {
+      "name": "corpus-allow-python-triple-quoted-shell",
+      "command": "SP=/tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/d6f05d77-626b-4140-93cd-0d01913b90a6/scratchpad/d8\nsed -e 's/phase4-conditions.log/phase5-conditions.log/' -e 's/PHASE4 DONE/PHASE5 DONE/' $SP/phase4.sh > $SP/phase5.sh\npython3 - <<'PYEOF'\nimport re\np=\"/tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/d6f05d77-626b-4140-93cd-0d01913b90a6/scratchpad/d8/phase5.sh\"\ns=open(p).read()\nold=s[s.index('for spec in \"hw1'):s.index('echo \"PHASE5 DONE')]\nnew = '''C25=fixtures/localization/rplidar-c1-denseboost-parked-2026-08-25.bin\nHW1=$HW/hw-2026-08-26-cap1.bin\nfor spec in \"c25 $C25 1 20260825\" \"c25 $C25 2 77000000\" \"hw1 $HW1 1 20260825\" ; do\n  set -- $spec\n  run \"$1-xy01-s180-b$3\" $PROBE --capture \"$2\" --map $MAP --path both --seeds 8 \\\\\n      --seed-base \"$4\" --hint-sigma-yaw-deg 180 --hint-sigma-xy-m 0.1\ndone\n\n'''\ns=s.replace(old,new)\nopen(p,\"w\").write(s)\nprint(\"rewritten\")\nPYEOF\ngrep -n 'for spec\\|run \"\\|PHASE5' $SP/phase5.sh; chmod +x $SP/phase5.sh; bash -n $SP/phase5.sh && echo \"syntax ok\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real set -- $spec inside a Python string inside a quoted heredoc."
+    },
+    {
+      "name": "corpus-allow-set-from-cmdsub",
+      "command": "cd /home/ncenter/projects/godo-console-spa\necho \"=== every map SVG viewBox in the artboards, with its aspect ===\"\nfor f in doc/design-canvas/Admin*.dc.html doc/design-canvas/Main.dc.html doc/design-canvas/LiveOff.dc.html; do\n  vb=$(grep -oE 'viewBox=\"0 0 [0-9]+ [0-9]+\"' \"$f\" | head -1)\n  [ -z \"$vb\" ] && continue\n  set -- $(echo \"$vb\" | grep -oE \"[0-9]+ [0-9]+\\\"\" | tr -d '\"')\n  printf \"  %-34s %-24s aspect %.3f\\n\" \"$(basename $f)\" \"$vb\" \"$(python3 -c \"print($1/$2)\")\"\ndone",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real set -- $(...), whose output zsh does split."
+    },
+    {
+      "name": "corpus-allow-variable-prefixed-glob",
+      "command": "for f in $SP/smoke/*/data/*.csv; do timeout 300 python3 $SP/analyse_oracle.py $f; echo; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real for list where the variable is only the prefix of a glob word."
+    },
+    {
+      "name": "corpus-allow-for-over-seq",
+      "command": "for i in $(seq 1 30); do if ! pgrep -x cargo >/dev/null 2>&1; then echo \"cargo finished after ~$((i*20))s\"; break; fi; sleep 20; done; echo \"=== output ===\"; cat /tmp/claude-1000/-home-ncenter-projects-godo-console-spa/f389f925-72e9-4854-838e-c3412038f750/tasks/bhdwruy0b.output",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real for i in $(seq 1 30), a command substitution list."
+    },
+    {
+      "name": "corpus-allow-split-flag-probe-line",
+      "command": "n=0; for p in ${=pids}; do n=$((n+1)); done; echo \"  for p in \\${=pids}         -> $n iterations\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real line using ${=pids} and an escaped \\${=pids} in its message."
+    },
+    {
+      "name": "corpus-for-two-variables",
+      "command": "W=/home/ncenter/projects/godo-ochest; cd $W; R=doc/issue_registry.md; D=doc/2026-09-10-doc-comment-reversal-design.md\nfor f in $R $D; do echo \"  $f: open/base/close=$(grep -cE '^(<<<<<<<|\\|\\|\\|\\|\\|\\|\\||>>>>>>>)' $f)  '=======' here=$(grep -cx '=======' $f) main=$(git show origin/main:$f | grep -cx '=======') branch=$(git show f552d04:$f | grep -cx '=======')\"; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted+settled",
+      "why": "A list of several words is an author enumerating items, not the defect shape, which is a list that is exactly one variable expected to hold many."
+    },
+    {
+      "name": "author-gating-bash-shell",
+      "command": "set -- $spec; echo $1 $2",
+      "shell": "/bin/bash",
+      "expect": "allow",
+      "source": "author",
+      "why": "The same shape is silent when SHELL is /bin/bash, which does split."
+    },
+    {
+      "name": "author-allow-set-with-more-words",
+      "command": "set -- $spec extra",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "set -- with anything after the variable is not the shape."
+    },
+    {
+      "name": "author-deny-for-newline-do",
+      "command": "for x in $L\ndo\n  echo $x\ndone",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "The list ends at a newline rather than a semicolon, and is still one variable."
+    },
+    {
+      "name": "author-deny-for-space-before-semicolon",
+      "command": "for x in $L ; do echo $x; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Whitespace before the semicolon does not add a list item."
+    },
+    {
+      "name": "author-deny-set-with-trailing-comment",
+      "command": "set -- $spec  # split into words",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A trailing comment is not an argument, so nothing follows the variable."
+    },
+    {
+      "name": "author-allow-for-quoted-var",
+      "command": "for x in \"$L\"; do echo $x; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A quoted variable says one iteration was meant."
+    },
+    {
+      "name": "author-for-braced-var",
+      "command": "for x in ${L}; do echo $x; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author+settled",
+      "why": "Measured on this host: zsh gives one iteration for the braced form exactly as for the unbraced one, and the rewrite is the same, so the matcher covers both."
+    },
+    {
+      "name": "author-allow-set-unbraced-split-flag",
+      "command": "set -- $=spec",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "$=spec is the unbraced split form, not a bare name."
+    },
+    {
+      "name": "author-allow-bash-c-single-quoted",
+      "command": "bash -c 'for x in $L; do echo $x; done'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The loop is text handed to bash, not a zsh command."
+    },
+    {
+      "name": "author-allow-bash-c-double-quoted",
+      "command": "bash -c \"for x in $L; do echo \\$x; done\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "zsh substitutes the variable's text into the program and bash then splits it, so the loop is bash's."
+    },
+    {
+      "name": "author-allow-unquoted-heredoc-script",
+      "command": "cat <<EOF > run.sh\nfor x in $L; do echo \\$x; done\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A heredoc body is not a command, even when zsh expands the variable inside it."
+    },
+    {
+      "name": "author-allow-for-at-unquoted",
+      "command": "for x in $@; do :; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "$@ is not a NAME, and zsh gives one word per positional parameter."
+    },
+    {
+      "name": "author-allow-for-positional",
+      "command": "for x in $1; do :; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The rule names $NAME only, and a positional parameter is not a name."
+    },
+    {
+      "name": "author-allow-set-without-dashdash",
+      "command": "set $spec",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The rule names set -- exactly."
+    },
+    {
+      "name": "author-deny-set-in-subshell",
+      "command": "(set -- $spec; echo $#)",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A subshell does not hide the simple command inside it."
+    },
+    {
+      "name": "author-deny-set-in-then-branch",
+      "command": "if true; then set -- $spec; fi",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A leading then keyword is stripped before the shape is read."
+    }
+  ]
+}

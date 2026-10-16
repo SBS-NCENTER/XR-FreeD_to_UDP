@@ -10,7 +10,10 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.17.1",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -21,3 +24,11 @@ packages = ["backend"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# The rule set the check enforces; a rule is relaxed on the one line with
+# `# noqa: <code>` and its reason beside it.
+select = ["E", "F", "W", "I", "UP", "B", "RUF"]

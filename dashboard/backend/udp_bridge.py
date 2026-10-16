@@ -1,4 +1,5 @@
 """UDP bridge: receive diag (DIAG_PORT), send control (CTRL_PORT)."""
+
 import socket
 import threading
 import time
@@ -12,12 +13,12 @@ class UdpBridge(threading.Thread):
         self.state = state
         self._stop = threading.Event()
         self._last_targets_refresh = 0.0
-        self._targets_for_ip = ""      # which device the cached targets belong to
+        self._targets_for_ip = ""  # which device the cached targets belong to
 
     def _bind(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        if hasattr(socket, "SO_REUSEPORT"):   # coexist with xrfd_ctl/xrfd_monitor on DIAG_PORT
+        if hasattr(socket, "SO_REUSEPORT"):  # coexist with xrfd_ctl/xrfd_monitor on DIAG_PORT
             try:
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             except OSError:
@@ -31,11 +32,11 @@ class UdpBridge(threading.Thread):
         while not self._stop.is_set():
             try:
                 data, addr = sock.recvfrom(8192)
-            except socket.timeout:
+            except TimeoutError:
                 self._maybe_refresh_targets()
                 continue
             except OSError:
-                time.sleep(1.0)                 # transient socket error: back off, re-bind
+                time.sleep(1.0)  # transient socket error: back off, re-bind
                 try:
                     sock.close()
                 finally:
@@ -48,7 +49,7 @@ class UdpBridge(threading.Thread):
                     self.state.update_from_diag(parsed, addr[0])
                     self.state.publish()
             except Exception:
-                pass                            # never let one packet kill the loop
+                pass  # never let one packet kill the loop
         sock.close()
 
     def _maybe_refresh_targets(self):
@@ -70,7 +71,7 @@ class UdpBridge(threading.Thread):
             if tl:
                 with self.state._lock:
                     if self.state.device_ip != ip:
-                        return          # selection moved while we were asking
+                        return  # selection moved while we were asking
                     self.state.targets = tl
                 self.state.publish()
 
@@ -86,7 +87,7 @@ class UdpBridge(threading.Thread):
             s.sendto(cmd.encode("ascii"), (ip, config.CTRL_PORT))
             data, _ = s.recvfrom(8192)
             return data.decode("ascii", "replace")
-        except (socket.timeout, OSError):
+        except TimeoutError, OSError:
             return None
         finally:
             s.close()

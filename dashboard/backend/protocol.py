@@ -1,8 +1,8 @@
 """Pure parsing/command helpers ported from tools/xrfd_dashboard.ps1."""
+
 import re
 
-_DIAG = re.compile(
-    r"XRFD up=(\d+) (?:ms=(\d+) )?ip=(\S+) rx=(\d+) dhcp=(\d+)/(\d+) rtr=(\w)")
+_DIAG = re.compile(r"XRFD up=(\d+) (?:ms=(\d+) )?ip=(\S+) rx=(\d+) dhcp=(\d+)/(\d+) rtr=(\w)")
 _TARGET = re.compile(r" t(\d)=(off|[ABC]),?(\d+)?,?(\d+)?,?(\d+)?")
 _TARGETS_LINE = re.compile(r"^t(\d) (on|off) (\d+\.\d+\.\d+\.\d+):(\d+)")
 
@@ -40,12 +40,14 @@ def parse_targets(reply):
     for line in reply.split("\n"):
         m = _TARGETS_LINE.match(line)
         if m:
-            out.append({
-                "n": int(m.group(1)),
-                "on": m.group(2) == "on",
-                "ip": m.group(3),
-                "port": int(m.group(4)),
-            })
+            out.append(
+                {
+                    "n": int(m.group(1)),
+                    "on": m.group(2) == "on",
+                    "ip": m.group(3),
+                    "port": int(m.group(4)),
+                }
+            )
     return out
 
 

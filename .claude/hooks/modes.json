@@ -1,0 +1,9 @@
+{
+  "notepad-absent": "deny",
+  "zsh-colon-modifier": "deny",
+  "zsh-pipestatus": "deny",
+  "zsh-unsplit-variable": "deny",
+  "git-checkout": "deny",
+  "git-push-door": "deny",
+  "agent-grant": "deny"
+}

@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# Refuse a commit while HEAD is `main` or `production`.
+#
+# A session commits on its own branch: a lane on its issue branch, the seat on
+# its own. `main` integrates: a lane's pull request is merged into it on
+# GitHub with a merge commit, and the seat's own commit reaches it as a fast-forward by
+# `scripts/publish.sh HEAD main`. `production` releases: it moves as a fast-forward to
+# a commit of `main` by `scripts/publish.sh <commit> production`, or by a hotfix pull
+# request merged on GitHub. Neither branch takes a local commit, so a commit
+# made while HEAD is either one lands on the wrong branch.
+#
+# WHAT THIS DOES NOT BLOCK
+#
+#   - A fast-forward, which creates no commit, and a merge that completes
+#     without stopping, which creates its commit without running this hook.
+#     A merge that stops on a conflict is concluded by `git commit`, which
+#     does run it.
+#   - `git rebase`, which does not run this hook.
+#   - `git commit --no-verify`, git's own escape hatch. Deliberate use is fine;
+#     that is what makes this a guard rather than a wall.
+#   - Anything in a detached HEAD, which is not the mistake this catches.
+#
+# WHERE IT LIVES
+#
+# `.git/hooks/` is not tracked, so a fresh clone has no hook and no error: an
+# absent guard passes its own check. The hooks directory is the common git
+# directory's, so every worktree of a checkout runs the one installed copy.
+# This file is the tracked copy, and `scripts/install-git-hooks.sh` places it
+# and says when the installed copy has drifted from it. Nothing runs the
+# installer automatically: run it after this file changes.
+
+branch=$(git symbolic-ref --quiet --short HEAD) || exit 0
+case "$branch" in
+  main | production) ;;
+  *) exit 0 ;;
+esac
+
+cat >&2 <<MSG
+
+  REFUSED: this commit would land on \`$branch\`.
+
+  A session commits on its own branch; \`main\` and \`production\` take no local
+  commit. Branch first:
+
+      git switch -c <branch>      # your work moves with you, uncommitted
+      git commit                  # then commit on the branch
+
+  \`main\` moves by a pull request merged on GitHub or by scripts/publish.sh
+  HEAD main; \`production\` by scripts/publish.sh <commit> production, a fast-forward.
+
+  If this commit genuinely belongs on \`$branch\`, \`git commit --no-verify\`
+  says so deliberately.
+
+MSG
+exit 1

@@ -1,0 +1,477 @@
+{
+  "rule": "git-checkout",
+  "cases": [
+    {
+      "name": "design-deny-discard-paths",
+      "command": "git checkout -- src/a.rs",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "checkout -- <paths> discards work, and restore is the narrow equivalent."
+    },
+    {
+      "name": "design-deny-after-cd-with-dash-c",
+      "command": "cd /x && git -C /y checkout -b feat/z origin/main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "A global -C option between git and the subcommand is skipped, and the second command in an && list is read."
+    },
+    {
+      "name": "design-deny-detach-quiet",
+      "command": "git checkout -q --detach origin/main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "checkout --detach has switch --detach as its equivalent."
+    },
+    {
+      "name": "design-deny-theirs",
+      "command": "git checkout --theirs doc/a.md",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "checkout --theirs has restore --theirs as its equivalent."
+    },
+    {
+      "name": "design-deny-sudo-u-wrapper",
+      "command": "sudo -u ncenter git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "sudo with -u and its argument is stripped before the command is read."
+    },
+    {
+      "name": "design-allow-switch-create",
+      "command": "git switch -c feat/z origin/main",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "switch is the replacement, not the forbidden subcommand."
+    },
+    {
+      "name": "design-allow-restore-source",
+      "command": "git restore --source=HEAD~1 src/a.rs",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "restore is the replacement, not the forbidden subcommand."
+    },
+    {
+      "name": "design-allow-commit-message-text",
+      "command": "git commit -m \"never git checkout here\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The words sit inside a double-quoted argument of commit, not in a command position."
+    },
+    {
+      "name": "design-allow-log-grep-pattern",
+      "command": "git log --grep=checkout --oneline",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "checkout is the value of an option to log."
+    },
+    {
+      "name": "design-allow-checkout-index",
+      "command": "git checkout-index -a",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "checkout-index is a different subcommand whose name only begins with checkout."
+    },
+    {
+      "name": "design-allow-echo-single-quoted",
+      "command": "echo 'git checkout main'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "The words are one single-quoted argument of echo."
+    },
+    {
+      "name": "design-allow-quoted-heredoc-notes",
+      "command": "cat <<'EOF' > notes.md\ngit checkout main\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A heredoc body is text written to a file, not a command."
+    },
+    {
+      "name": "corpus-deny-discard-two-files",
+      "command": "git checkout -- web/src/features/dashboard/state.ts web/src/features/dashboard/LensRail.svelte 2>/dev/null; git status --short; ls web/src/features/dashboard/",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real checkout -- of two files, whose errors were thrown away."
+    },
+    {
+      "name": "corpus-deny-theirs-or-rev-paths",
+      "command": "cd /home/ncenter/projects/godo-console-spa\ngit checkout --theirs doc/design-canvas/AdminDashboard.dc.html 2>/dev/null || git checkout origin/main -- doc/design-canvas/AdminDashboard.dc.html\necho \"=== their process card, whole ===\" && python3 -c \"\ns=open('doc/design-canvas/AdminDashboard.dc.html').read()\ni=s.find('프로세스')\nprint(s[i-300:i+2100])\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real checkout --theirs with a fallback checkout <rev> -- <path> on the other side of ||."
+    },
+    {
+      "name": "corpus-deny-create-branch",
+      "command": "git checkout -b feature/r4-1-kernels && git branch --show-current",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real checkout -b that switch -c replaces."
+    },
+    {
+      "name": "corpus-deny-create-branch-then-vv",
+      "command": "git checkout -b feature/r3-godo-lidar && git branch -vv",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A second real checkout -b, followed by a branch listing."
+    },
+    {
+      "name": "corpus-deny-detach-after-fetch",
+      "command": "cd /home/ncenter/projects/godo-ochest\ngit fetch origin -q && git checkout -q --detach origin/main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real checkout -q --detach origin/main after a fetch in an orchestrator worktree."
+    },
+    {
+      "name": "corpus-deny-ours-then-add",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\ngit checkout --ours doc/2026-09-04-console-spa-plan.md && git add doc/2026-09-04-console-spa-plan.md\ngrep -c \"^<<<<<<<\\|^=======\\|^>>>>>>>\" doc/2026-09-04-console-spa-plan.md\necho \"--- spa02's correction, kept whole ---\"; sed -n '1349,1352p;1358,1372p' doc/2026-09-04-console-spa-plan.md",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real checkout --ours during a conflict, which restore --ours replaces."
+    },
+    {
+      "name": "corpus-deny-bare-path-revert",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker; git checkout crates/godo-config/src/destinations.rs && echo \"reverted\"; git status --short crates/godo-config/src/destinations.rs; cargo test -p godo-schema --test defaults 2>&1 | grep -E 'test result:|FAILED' | head -2",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real checkout <path> without -- used to revert a file."
+    },
+    {
+      "name": "corpus-deny-discard-then-diff",
+      "command": "git checkout -- crates/godo-lidar-session/src/session.rs\ngit diff --stat",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real checkout -- on its own line before a diff."
+    },
+    {
+      "name": "corpus-deny-checkout-or-restore",
+      "command": "git checkout web/tests/map.contract.test.ts 2>/dev/null || git restore web/tests/map.contract.test.ts",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real checkout <path> whose fallback after || is the restore it should have been."
+    },
+    {
+      "name": "corpus-deny-after-comment-naming-theirs",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\n# rebase 중: --theirs = 재생 중인 커밋(디자인 변경). 그쪽이 이미 godo-irq-pin 을 담고 있습니다\ngit checkout --theirs doc/design-canvas/AdminDashboard.dc.html",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real checkout --theirs on the line after a comment that also says --theirs; the comment is ignored and the command is not."
+    },
+    {
+      "name": "corpus-allow-quoted-heredoc-commit",
+      "command": "git commit -F - <<'MSG'\ndocs: prefer the narrow git command over the overloaded one\n\n`checkout` and `reset` each cover several unrelated jobs under one name.\nDuring R4.2's Task 12 a subagent ran `git checkout --` against a test file\nwithout checking `git status` first and discarded uncommitted work. It\nrestored the file from a backup, but the loss was unverifiable in principle:\n`git checkout -- <file>` never moves HEAD, so it writes no reflog entry and\nthere is nothing left to diff a restore against.\n\nThe rule is picked by intent rather than by command name, because `revert`\nand `reset --hard` are not substitutes for each other — `revert` stacks a new\ncommit and leaves shared history valid, `reset --hard` cuts history off. Both\nkeep their place; only the default changes.\n\n`reset --hard` stays available for the case that genuinely needs it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>\nMSG\ngit log --oneline -1",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real commit message in a quoted heredoc that quotes git checkout -- inside backticks."
+    },
+    {
+      "name": "corpus-allow-echo-no-checkout",
+      "command": "cd /home/ncenter/projects/godo-issue81\n./scripts/open-work.sh --check > /dev/null 2>&1; echo \"open-work exit=$?\"\ncd /home/ncenter/projects/godo-lidar-tracker\necho \"=== ff-merge: ref only, no checkout — the primary worktree stays on its branch ===\"\ngit fetch . feat/issue-81-oneshot-anneal:main\necho \"main now: $(git log --oneline -1 main)\"\ngit merge-base --is-ancestor 2b0f290 main && echo \"fast-forward confirmed\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real banner that says no checkout inside double quotes before a fetch into main."
+    },
+    {
+      "name": "corpus-allow-comment-lines",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\necho \"before: main $(git rev-parse --short main)\"\n# `git fetch . <src>:main` moves the ref without a checkout and refuses a\n# non-fast-forward exactly as `merge --ff-only` would. A `git switch main` here\n# would move the primary worktree, which is the hazard this session paid for once.\ngit fetch . feat/issue-100-theta-as-an-act:main\necho \"after:  main $(git rev-parse --short main)\"\ngit log --oneline -1 main\necho \"=== ff confirmed ===\"\ngit merge-base --is-ancestor 03400c6 main && echo \"main is a descendant of its old tip\"\necho \"=== identical, so the branch pointer is redundant ===\"\na=$(git rev-parse main); b=$(git rev-parse feat/issue-100-theta-as-an-act)\n[ \"$a\" = \"$b\" ] && echo \"IDENTICAL $a\" || echo \"DIFFERENT — stop\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "Real comment lines that mention a checkout and a git switch, around commands that are neither."
+    },
+    {
+      "name": "corpus-allow-echo-question",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\necho \"=== does local main move without a checkout? ===\"\necho \"  local main : $(git rev-parse --short main)\"\necho \"  origin/main: $(git rev-parse --short origin/main)\"\necho \"  my HEAD    : $(git rev-parse --short HEAD)\"\necho\necho \"=== the claim under test: does git cherry accept a remote-tracking ref? ===\"\necho \"--- against STALE local main (what the old form would do) ---\"\ngit cherry main feat/control-plane-d90-reader-field; echo \"  exit=$?\"\necho \"--- against origin/main (the candidate) ---\"\ngit cherry origin/main feat/control-plane-d90-reader-field; echo \"  exit=$?\"\necho \"  (a '+' prefix = not upstream; '-' = already upstream)\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real echo whose double-quoted question contains the word checkout, among commands that never check out."
+    },
+    {
+      "name": "corpus-allow-grep-alternation",
+      "command": "grep -niE 'replay|cherry-pick|clean at|working tree is clean|checkout the published' doc/working-agreements.md | head | sed 's/^/  /'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real single-quoted search pattern that contains checkout."
+    },
+    {
+      "name": "corpus-allow-quoted-heredoc-ledger",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker/.superpowers/sdd/2026-08-23-localization-plan && cat >> progress.md <<'LEDGER'\n**A destructive git operation happened inside this round and is worth recording\nwhether or not it cost anything.** The implementer ran `git checkout --` against\n`crates/godo-localization/tests/scan_ops.rs` **before** checking `git status`,\ndiscarding uncommitted work on that file. It reports re-applying the fixes and\nLEDGER\necho ok",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real ledger entry in a quoted heredoc that describes a git checkout -- incident."
+    },
+    {
+      "name": "corpus-allow-single-quoted-list-item",
+      "command": "cd /home/ncenter/projects/godo-harness && for s in 'git switch <branch>' 'never `git checkout`' 'force-with-lease=<branch>:<the hash' 'git branch -d <branch>' 'Deletes regardless' 'PIPESTATUS'; do printf '%-45s ' \"$s\"; git log --reverse -S\"$s\" --format='%h %ad' --date=format:'%Y-%m-%dT%H:%M' -- CLAUDE.md | head -1; done; git log --reverse -S'PIPESTATUS' --format='%h %ad %s' --date=format:'%Y-%m-%dT%H:%M' -- NEXT_SESSION.md .claude/memory RUST_FOUNDATION.md doc | head -3",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real loop whose single-quoted list item holds git checkout inside backticks."
+    },
+    {
+      "name": "corpus-allow-echo-tracker-checkout",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker && echo \"=== tracker checkout ===\"; git log --oneline -1; echo \"  has panel: $(test -f web/src/features/system/JournalPanel.svelte && echo yes || echo NO)\"; echo \"  vs origin/main: $(git rev-list --left-right --count origin/main...HEAD)\"\ncd /home/ncenter/projects/godo-console-spa && echo \"=== my worktree ===\"; git log --oneline -1; echo \"  has panel: $(test -f web/src/features/system/JournalPanel.svelte && echo yes || echo NO)\"; echo \"  vs origin/main: $(git rev-list --left-right --count origin/main...HEAD)\"\necho \"=== target dirs ===\"; ls -ld /home/ncenter/projects/godo-lidar-tracker/target /home/ncenter/projects/godo-console-spa/target 2>/dev/null",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real banner whose double-quoted text is tracker checkout."
+    },
+    {
+      "name": "author-deny-dash-c-config",
+      "command": "git -c advice.detachedHead=false checkout --detach origin/main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A -c key=value global option is skipped with its argument."
+    },
+    {
+      "name": "author-deny-long-global-options",
+      "command": "git --no-pager -C /home/ncenter/projects/godo-harness checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A long global option and a -C with its path are both skipped."
+    },
+    {
+      "name": "author-deny-assignment-prefix",
+      "command": "GIT_TRACE=1 git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A leading assignment is stripped."
+    },
+    {
+      "name": "author-deny-env-wrapper",
+      "command": "env GIT_DIR=/home/ncenter/projects/godo-harness/.git git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "env and its assignment are stripped."
+    },
+    {
+      "name": "author-deny-timeout-wrapper",
+      "command": "timeout 30 git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "timeout and its duration are stripped."
+    },
+    {
+      "name": "author-deny-command-wrapper",
+      "command": "command git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "command is a wrapper and is stripped."
+    },
+    {
+      "name": "author-deny-nice-wrapper",
+      "command": "nice git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "nice is a wrapper and is stripped."
+    },
+    {
+      "name": "author-deny-stacked-wrappers",
+      "command": "sudo -u ncenter env GIT_TRACE=1 timeout 30 git checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Wrappers stacked in a row are all stripped."
+    },
+    {
+      "name": "author-deny-in-subshell",
+      "command": "(cd /home/ncenter/projects/godo-harness && git checkout -- a.rs)",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A subshell does not hide the command inside it."
+    },
+    {
+      "name": "author-deny-in-command-substitution",
+      "command": "echo \"$(git checkout main 2>&1)\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A command substitution runs its command, even inside double quotes."
+    },
+    {
+      "name": "author-deny-if-condition",
+      "command": "if git checkout main; then echo ok; fi",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A leading if keyword is stripped."
+    },
+    {
+      "name": "author-deny-line-continuation",
+      "command": "git \\\n  checkout main",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A backslash-newline joins the lines into one simple command."
+    },
+    {
+      "name": "author-deny-dash-previous-branch",
+      "command": "git stash && git checkout - && git stash pop",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "checkout - is the previous-branch form that switch - replaces."
+    },
+    {
+      "name": "author-deny-not-gated-by-shell",
+      "command": "git checkout main",
+      "shell": "/bin/bash",
+      "expect": "deny",
+      "source": "author",
+      "why": "This rule is not a zsh rule, so it applies under /bin/bash too."
+    },
+    {
+      "name": "author-allow-sparse-checkout",
+      "command": "git sparse-checkout set crates",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "sparse-checkout is a different subcommand whose name ends with checkout."
+    },
+    {
+      "name": "author-allow-dash-c-directory-named-checkout",
+      "command": "git -C checkout status",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "checkout here is the argument of -C, and the subcommand is status."
+    },
+    {
+      "name": "author-allow-help-checkout",
+      "command": "git help checkout",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The subcommand is help, and checkout is its argument."
+    },
+    {
+      "name": "author-allow-config-alias",
+      "command": "git config alias.co checkout",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The subcommand is config, and checkout is a value."
+    },
+    {
+      "name": "author-allow-grep-double-quoted",
+      "command": "grep -rn \"git checkout\" doc/",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The words are one double-quoted pattern argument."
+    },
+    {
+      "name": "author-allow-comment-line",
+      "command": "# git checkout main\ngit switch main",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A comment line is not a command."
+    },
+    {
+      "name": "author-allow-unquoted-heredoc-plain-text",
+      "command": "cat <<EOF\ngit checkout main\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Plain text in an unquoted heredoc body is expanded but never run."
+    },
+    {
+      "name": "author-allow-bash-c-string",
+      "command": "bash -c 'git checkout main'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The words are a string argument to bash, not a simple command zsh parses."
+    },
+    {
+      "name": "author-xargs-not-a-wrapper",
+      "command": "git diff --name-only | xargs git checkout --",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author+settled",
+      "why": "xargs is not added to the wrappers: the corpus holds no xargs ... git checkout at all, and twelve xargs ... git <subcommand> in ten sessions, none of them a checkout."
+    },
+    {
+      "name": "author-bare-checkout",
+      "command": "git checkout",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author+settled",
+      "why": "Measured on this host: a checkout with no operand exits 0, prints 48 bytes and changes nothing, and the rule's table has no replacement to name for it."
+    },
+    {
+      "name": "author-backticks-in-unquoted-heredoc",
+      "command": "git commit -F - <<EOF\nnever `git checkout main` here\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author+settled",
+      "why": "Measured on this host: an unquoted heredoc's body is live, so the substitution really runs the command. The operand is what makes it this rule's business; the operandless form is the case below."
+    },
+    {
+      "name": "settled-allow-operandless-checkout-in-a-heredoc",
+      "command": "git commit -F - <<EOF\nnever `git checkout` here\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "settled",
+      "why": "The body is read, and what it holds is a checkout with no operand, which this rule allows. Both settlements hold at once, and this is where they meet."
+    },
+    {
+      "name": "settled-allow-operanded-checkout-in-a-QUOTED-heredoc",
+      "command": "git commit -F - <<'EOF'\nnever `git checkout main` here\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "settled",
+      "why": "A quoted delimiter makes the body inert, so nothing runs and there is nothing to deny."
+    },
+    {
+      "name": "settled-deny-checkout-merge-short",
+      "command": "git checkout -m -- doc/issue_registry.md",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "Found in a seat's real work before this rule was promoted. It recreates a merge conflict, which restore --merge does exactly, and the table now names it."
+    },
+    {
+      "name": "settled-deny-checkout-merge-long",
+      "command": "git checkout --merge -- doc/issue_registry.md",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "The long spelling of the same thing, from the same command's fallback branch."
+    }
+  ]
+}

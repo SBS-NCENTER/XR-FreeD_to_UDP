@@ -1,0 +1,581 @@
+{
+  "rule": "zsh-colon-modifier",
+  "cases": [
+    {
+      "name": "design-deny-dquote-push-refspec",
+      "command": "git push origin \"$H:refs/heads/main\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "An unbraced name followed by :r is a modifier even inside double quotes, so the refspec loses its first letter."
+    },
+    {
+      "name": "design-deny-unquoted-show-path",
+      "command": "git show $c:crates/godo-config/src/tracker.rs | grep -c x",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "An unquoted $c followed by :c is the command-path modifier, here in the first stage of a pipeline."
+    },
+    {
+      "name": "design-deny-dquote-uppercase-a",
+      "command": "git show \"origin/$B:ARCHITECTURE.md\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "Uppercase A is one of the three uppercase modifier letters, and the name sits mid-word inside double quotes."
+    },
+    {
+      "name": "design-deny-for-loop-body",
+      "command": "for rev in a b; do git show $rev:crates/x.rs; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "The modifier is inside a loop body, on the loop's own variable."
+    },
+    {
+      "name": "design-list-cmdsub-uppercase-r",
+      "command": "x=$(git show $H:README.md)",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design+settled",
+      "why": "Uppercase R is not among the letters zsh applies after an unbraced $name:, and the shell here leaves the text unchanged."
+    },
+    {
+      "name": "design-deny-unquoted-heredoc-body",
+      "command": "cat <<EOF\n$H:refs\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "zsh expands the body of a heredoc whose delimiter is unquoted, so a modifier there is applied."
+    },
+    {
+      "name": "design-deny-positional-t",
+      "command": "echo $1:t",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "design",
+      "why": "A positional parameter takes a modifier the same way a name does."
+    },
+    {
+      "name": "design-allow-braced-refspec",
+      "command": "git push origin \"${H}:refs/heads/main\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "Braces end the name before the colon, which is the rewrite the deny reason gives."
+    },
+    {
+      "name": "design-allow-single-quoted",
+      "command": "echo '$H:refs'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "Single quotes stop all expansion."
+    },
+    {
+      "name": "design-allow-backslash-dollar",
+      "command": "echo \\$H:refs",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A backslash before the dollar sign makes it literal, so no parameter is expanded."
+    },
+    {
+      "name": "design-allow-quoted-heredoc-macro-fragment",
+      "command": "cat <<'EOF'\nmacro_rules! m { ($t:ty) => {} }\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A Rust macro fragment in a heredoc with a quoted delimiter is never expanded; this is the near-miss D4 requires."
+    },
+    {
+      "name": "design-allow-url-port",
+      "command": "curl http://$HOST:8080/",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A digit after the colon is not a modifier letter."
+    },
+    {
+      "name": "design-allow-scp-slash",
+      "command": "scp f $HOST:/tmp/",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A slash after the colon is not a modifier letter."
+    },
+    {
+      "name": "design-allow-non-modifier-forms",
+      "command": "echo $H::x $H:foo ${H:-default} ${H:t}",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "A second colon, a letter outside the list, and colons inside braces are none of them the unbraced modifier shape."
+    },
+    {
+      "name": "design-allow-python-single-quoted",
+      "command": "python3 -c 'print(\"$H:r\")'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "design",
+      "why": "Double quotes nested inside single quotes are ordinary characters, so zsh expands nothing in the Python source."
+    },
+    {
+      "name": "author-deny-cmdsub-lowercase-path",
+      "command": "x=$(git show $H:crates/x.rs)",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "The command-substitution context of the design's README line, with a lowercase c after the colon so the modifier really applies."
+    },
+    {
+      "name": "corpus-deny-push-dquote-branch-refspec",
+      "command": "cd /home/ncenter/projects/godo-ochest\nH=$(git rev-parse chore/seat-session-watch-notes)\necho \"pushing $H\"\ngit push origin \"$H:refs/heads/chore/seat-session-watch-notes\" 2>&1",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real push whose double-quoted refspec was rejected because $H:refs lost its r."
+    },
+    {
+      "name": "corpus-deny-show-in-cmdsub-loop",
+      "command": "for c in b594ee7 4f85b5f; do n=$(git show $c:crates/godo-config/src/tracker.rs | grep -c '#\\[godo('); r=$(git show $c:crates/godo-config/src/tracker.rs | grep -c 'range *='); echo \"$c  declared=$n  ranged=$r  undeclared=$((82-n))\"; done; echo \"HEAD:\"; n=$(grep -c '#\\[godo(' crates/godo-config/src/tracker.rs); r=$(grep -c 'range *=' crates/godo-config/src/tracker.rs); echo \"        declared=$n  ranged=$r  undeclared=$((82-n))\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "Real git show calls where $c:crates sits inside command substitutions in a loop body."
+    },
+    {
+      "name": "corpus-deny-push-to-main-unquoted",
+      "command": "B=fix/issue-174-freed-footer\necho \"═══ PREDICT: ff 0 behind · D121=1 · D114-D120 each 1 · rows 159 · next-free #212\"\ngit rev-list --left-right --count origin/main...origin/$B\ngit push origin $B:refs/heads/main 2>&1|tail -2\ngit fetch origin 2>&1|tail -1\nF=doc/2026-08-31-operator-console-design.md\necho \"═══ READ BACK ═══\"\nprintf 'origin/main  %s\\n' \"$(git rev-parse --short origin/main)\"\nprintf 'D114..D121   '; for n in D114 D115 D116 D117 D118 D119 D120 D121; do printf '%s ' \"$(git show origin/main:$F|grep -cE \"^#{1,6} +$n +—\")\"; done; echo ' (predicted all 1)'\nprintf 'duplicates   %s (predicted 0)\\n' \"$(git show origin/main:$F|grep -E '^#{1,6} +D[0-9]+ +—'|grep -v ' amended'|sed -E 's/^#{1,6} +(D[0-9]+) +.*/\\1/'|sort|uniq -d|wc -l)\"\nprintf 'rows         %s (predicted 159)\\n' \"$(git show origin/main:doc/issue_registry.md|grep -cE '^\\| #[0-9]+')\"\nprintf 'next free    %s\\n' \"$(git show origin/main:doc/issue_registry.md|grep -E '^\\*\\*Next free'|grep -oE 'issue#[0-9]+')\"\nprintf '#212 row     %s (expected 0 — main02 has the text, not yet landed)\\n' \"$(git show origin/main:doc/issue_registry.md|grep -cE '^\\| #212 \\|')\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real push toward main whose unquoted $B:refs refspec was rewritten while its output went to tail."
+    },
+    {
+      "name": "corpus-deny-show-origin-prefix",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\nB=feat/issue-153-identity-t1-t3\necho \"=== unsafe 예산: godo-identity 가 forbid 하는가 ===\"\ngit show origin/$B:crates/godo-identity/src/lib.rs | grep -nE 'forbid|deny|unsafe' | head -5\necho; echo \"=== 의존성 ===\"\ngit show origin/$B:crates/godo-identity/Cargo.toml | grep -A12 '^\\[dependencies\\]'\necho; echo \"=== ARCHITECTURE.md 표의 마지막 행 (어디에 붙일지) ===\"\ngrep -nE '^\\| `godo-[a-z-]+' ARCHITECTURE.md | tail -3 | cut -c1-100",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "Real git show calls where the name follows origin/ inside the same word and :c comes after it."
+    },
+    {
+      "name": "corpus-deny-dquote-architecture",
+      "command": "cd /home/ncenter/projects/godo-lidar-tracker\ngit fetch origin 2>&1|tail -1\nSP=/tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/b1f19470-4b14-4908-ae3e-918104ffb56a/scratchpad\nB=feat/issue-153-identity-t1-t3\necho \"═══ PREDICT: ff 0 behind · ID27-ID30 각 1 · ARCHITECTURE +1행 · rows 163\"\ngit rev-list --left-right --count origin/main...origin/$B\nbash \"$SP/collide.sh\" $B\necho \"=== ARCHITECTURE 에 godo-identity 행이 들어갔나 ===\"\ngit show \"origin/$B:ARCHITECTURE.md\" | grep -cE '^\\| `godo-identity`'\necho \"=== CLAUDE.md 의 낡은 숫자가 빠졌나 ===\"\ngit show \"origin/$B:CLAUDE.md\" | grep -c 'fifteen crates'\necho; git push origin feat/issue-153-identity-t1-t3:refs/heads/main 2>&1|tail -2\ngit fetch origin 2>&1|tail -1\nI=doc/2026-09-01-identity-design.md\nprintf '\\norigin/main  %s\\n' \"$(git rev-parse --short origin/main)\"\nprintf 'ID27..ID30   '; for n in ID27 ID28 ID29 ID30; do printf '%s ' \"$(git show origin/main:$I|grep -cE \"^#{1,6} +$n +—\")\"; done; echo '(예측 각 1)'\nprintf 'godo-identity 행  %s\\nrows  %s\\n' \"$(git show origin/main:ARCHITECTURE.md|grep -cE '^\\| `godo-identity`')\" \"$(git show origin/main:doc/issue_registry.md|grep -cE '^\\| #[0-9]+')\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A real double-quoted origin/$B:ARCHITECTURE.md, where :A turned the revision into an absolute path; the CLAUDE.md line beside it would be allowed on its own."
+    },
+    {
+      "name": "corpus-deny-pushes-after-read",
+      "command": "cd /home/ncenter/projects/godo-ochest && H=f91e635a && H=$(git rev-parse f91e635) && echo \"merge commit $H\"; echo \"--- server main now (rule: ls-remote)\"; M=$(git ls-remote origin refs/heads/main | cut -f1); echo \"  $M\"; git fetch -q origin && echo \"  f91e635 descends from server main: $(git merge-base --is-ancestor $M $H && echo yes || echo NO)\"; echo \"--- how far ahead (rule: rev-list --left-right --count origin/main...f91e635): $(git rev-list --left-right --count origin/main...$H)\"; echo \"--- merge branch must not exist on the server yet: [$(git ls-remote origin refs/heads/merge/issue-232)]\"; git push --force-with-lease=merge/issue-232: origin $H:refs/heads/merge/issue-232; echo \"branch push exit=$?\"; git ls-remote origin refs/heads/merge/issue-232; echo \"--- main (plain push, the server enforces fast-forward)\"; git push origin $H:refs/heads/main; echo \"main push exit=$?\"; echo \"--- ask the server\"; git ls-remote origin refs/heads/main; git fetch -q origin; echo \"branches on the remote containing f91e635:\"; git branch -r --contains $H",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "Real unquoted pushes of $H:refs/heads/... to a merge branch and to main, after the hash was read into H."
+    },
+    {
+      "name": "corpus-deny-after-quoted-heredoc",
+      "command": "W=/home/ncenter/projects/godo-rustdoc-scope\necho \"=== lane state ===\"; git -C $W status --short | sed 's/^/  /'; echo \"  (empty = clean)\"\necho \"  HEAD: $(git -C $W rev-parse HEAD)\"\ngit -C $W rev-list --count origin/feat/issue-232-doc-comment-reversal..HEAD | sed 's/^/  count: /'\ngit -C $W cherry HEAD origin/feat/issue-232-doc-comment-reversal; echo \"  cherry EXIT=$?\"\necho\necho \"=== the two defects it says it introduced and repaired: bracket balance ===\"\ncd $W\npython3 - <<'EOF'\nimport pathlib,re\nfor rev in (\"before\",\"after\"):\n    pass\nEOF\nfor rev in 82e9def~1 82e9def; do\n  o=$(git show $rev:crates/godo-lidar/src/dense.rs | grep -E '^\\s*//' | grep -o '(' | wc -l)\n  c=$(git show $rev:crates/godo-lidar/src/dense.rs | grep -E '^\\s*//' | grep -o ')' | wc -l)\n  printf '  %-12s comment parens: %s open / %s close\\n' \"$rev\" \"$o\" \"$c\"\ndone\necho\necho \"=== the dropped clause: is it back? ===\"\ngit show 82e9def:crates/godo-lidar/src/dense.rs | grep -n 'nothing about the held capsule' | cut -c1-110 | sed 's/^/  /'",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus",
+      "why": "A quoted heredoc closes and the loop after it uses $rev:crates in command substitutions, so expansion must resume after the delimiter line."
+    },
+    {
+      "name": "corpus-deny-cmdsub-inside-dquote",
+      "command": "for c in 68de3b0^ 68de3b0; do printf '%s ' \"$(git show $c:crates/godo-localization/src/search.rs | awk 'NR<=1751' | grep -cE '^[[:space:]]*(///|//!)')\"; done; echo",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "corpus-adapted",
+      "why": "A real $c:crates inside a command substitution that is itself inside double quotes, which zsh still expands."
+    },
+    {
+      "name": "corpus-allow-quoted-heredoc-literal-fragment",
+      "command": "cd /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/69bede23-3dc0-4906-9c83-9e79db9cab73/scratchpad && cat > sweep.rs <<'EOF'\nuse std::marker::PhantomData;\nuse std::sync::atomic::AtomicU64;\nuse std::mem::{offset_of, size_of};\n\n#[repr(align(64))]\nstruct A<T, const W: usize> { seq: AtomicU64, words: [AtomicU64; W], tag: PhantomData<T> }\n\nmacro_rules! show {\n    ($($w:literal),*) => { $( println!(\"WORDS={} default-repr: seq={:>2} words={:>2} size={}\",\n        $w, offset_of!(A<u8, $w>, seq), offset_of!(A<u8, $w>, words), size_of::<A<u8,$w>>()); )* };\n}\nfn main() { show!(1,2,3,4,5,6,7,8); }\nEOF\nrustc -O sweep.rs -o sweep && ./sweep",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "Real Rust macro fragments $w:literal and $($w:literal),* written to a file through a quoted heredoc."
+    },
+    {
+      "name": "corpus-allow-quoted-heredoc-expr-fragment",
+      "command": "mkdir -p /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/69bede23-3dc0-4906-9c83-9e79db9cab73/scratchpad/layout_probe/src\ncat > /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/69bede23-3dc0-4906-9c83-9e79db9cab73/scratchpad/layout_probe/src/main.rs <<'EOF'\nuse std::marker::PhantomData;\nuse std::sync::atomic::AtomicU64;\nuse std::mem::offset_of;\n\n#[repr(align(64))]\nstruct Default_<T, const WORDS: usize> {\n    seq: AtomicU64,\n    words: [AtomicU64; WORDS],\n    tag: PhantomData<T>,\n}\n\n#[repr(C, align(64))]\nstruct ReprC<T, const WORDS: usize> {\n    seq: AtomicU64,\n    words: [AtomicU64; WORDS],\n    tag: PhantomData<T>,\n}\n\nmacro_rules! probe {\n    ($n:expr) => {\n        println!(\n            \"WORDS={}  default: seq={} words={}   reprC: seq={} words={}\",\n            $n,\n            offset_of!(Default_<(), $n>, seq),\n            offset_of!(Default_<(), $n>, words),\n            offset_of!(ReprC<(), $n>, seq),\n            offset_of!(ReprC<(), $n>, words),\n        );\n    };\n}\n\nfn main() {\n    probe!(1);\n    probe!(2);\n    probe!(3);\n    probe!(4);\n    probe!(5);\n    probe!(6);\n}\nEOF\ncd /tmp/claude-1000/-home-ncenter-projects-godo-lidar-tracker/69bede23-3dc0-4906-9c83-9e79db9cab73/scratchpad/layout_probe\ncat > Cargo.toml <<'EOF'\n[package]\nname = \"layout_probe\"\nversion = \"0.1.0\"\nedition = \"2024\"\nEOF\ncargo run --release 2>&1 | tail -20\necho \"=== debug ===\"\ncargo run 2>&1 | tail -20",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real $n:expr macro fragment in a quoted heredoc, followed by a second quoted heredoc."
+    },
+    {
+      "name": "corpus-allow-quoted-heredoc-ty-fragment",
+      "command": "cat > docs/superpowers/plans/2026-08-21-godo-config.md <<'PLAN_EOF'\n/// Implements `ConfigScalar` for an integer type via `i64` with a bounds check.\nmacro_rules! impl_int_scalar {\n    ($t:ty) => {\n        impl ConfigScalar for $t {\nPLAN_EOF\nwc -l docs/superpowers/plans/2026-08-21-godo-config.md",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "The real $t:ty macro fragment inside a quoted heredoc that writes a plan document."
+    },
+    {
+      "name": "corpus-allow-single-quoted-zsh-probe",
+      "command": "cd /tmp && zsh -f -c 'H=abc123; echo \"1 unquoted: \" $H:refs/heads/main; echo \"2 dquoted: $H:refs/heads/main\"; echo \"3 braced: ${H}:refs/heads/main\"; F=dir/file.txt; echo \"4 :t \" $F:t; echo \"5 :foo \" $H:foo; echo \"6 :x \" $H:xyz; echo \"7 :a \" $H:abc; echo \"8 :q \" $H:qq; echo \"9 :u \" $H:up' 2>&1; echo \"exit=$?\"; zsh -f -c 'L=\"a b c\"; for x in $L; do echo \"item=$x\"; done; set -- $L; echo \"argc=$#\"; false | true; echo \"PIPESTATUS=[${PIPESTATUS[0]}] pipestatus=[$pipestatus[1]]\"' 2>&1",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "Real probe strings with $H:refs and $F:t handed to zsh -f -c inside single quotes, which the outer shell never expands."
+    },
+    {
+      "name": "corpus-allow-braced-push",
+      "command": "cd /home/ncenter/projects/godo-ochest\nH=$(git rev-parse chore/seat-session-watch-notes)\necho \"pushing ${H} -> refs/heads/chore/seat-session-watch-notes\"\ngit push origin \"${H}:refs/heads/chore/seat-session-watch-notes\" 2>&1",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real push that braces the name before the refspec colon."
+    },
+    {
+      "name": "corpus-allow-show-colon-d",
+      "command": "B=feat/issue-113-seam-2-t6-t11\necho \"=== is §3.2's scan table amended on their branch? ===\"\ngit show $B:doc/2026-09-04-console-spa-plan.md 2>/dev/null | sed -n '/^#### `scan`/,/^#### `freed`/p' | head -20\necho\necho \"=== and what does the amended status table say now? ===\"\ngit show $B:doc/2026-09-04-console-spa-plan.md 2>/dev/null | grep -n 'age_ns\\|read_at_mono_ns' | head -12",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real git show $B:doc/... where d is not a modifier letter."
+    },
+    {
+      "name": "corpus-allow-show-colon-f",
+      "command": "B=feat/issue-113-seam-2-t6-t11\necho \"=== fixtures/wire/ contents ===\"; git ls-tree -r --name-only $B fixtures/wire/\necho; echo \"=== status.json ===\"; git show $B:fixtures/wire/status.json",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real git show $B:fixtures/... where f is not a modifier letter."
+    },
+    {
+      "name": "corpus-allow-show-colon-b",
+      "command": "cd /home/ncenter/projects/godo-rustdoc-scope && for c in dcd5084~1 dcd5084 a1a774e HEAD; do echo \"=== $c ===\"; git show $c:bins/godo-console/build.rs 2>/dev/null | sed -n '1,6p'; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real git show $c:bins/... where b is not a modifier letter."
+    },
+    {
+      "name": "corpus-allow-show-colon-dot",
+      "command": "cd /home/ncenter/projects/godo-verify && for r in 03f05ed 7bfc82c a389db9 eee2a45; do printf '%s  ' $r; git show $r:.claude/memory/MEMORY.md | tail -n 1 | cut -c1-70; done; git log -1 --format='%h %cd %s' --date=format:'%m-%d %H:%M' 7bfc82c; git log --format='%h %cd' --date=format:'%m-%d %H:%M' -1 -- .claude/memory/MEMORY.md 7bfc82c",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real git show $r:.claude/... where a dot follows the colon."
+    },
+    {
+      "name": "corpus-allow-show-uppercase-r",
+      "command": "for r in 19b6447~1 19b6447; do\n  n=$(git show $r:RUST_FOUNDATION.md | awk '/^###? .*[Mm]emory/,0' | awk '/^## /{if(seen)exit} /^###? .*[Mm]emory/{seen=1} seen' | wc -l)\n  printf '  %-12s memory block: %s lines\\n' \"$r\" \"$n\"\ndone",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted+settled",
+      "why": "The same uppercase-letter question as the README line, and the same answer: R is not a modifier letter."
+    },
+    {
+      "name": "corpus-allow-dquote-uppercase-c",
+      "command": "B=feat/issue-153-identity-t1-t3\ngit show \"origin/$B:CLAUDE.md\" | grep -c 'fifteen crates'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real double-quoted origin/$B:CLAUDE.md where uppercase C is not a modifier letter."
+    },
+    {
+      "name": "corpus-allow-chown-user-user",
+      "command": "sudo chown -R \"$USER:$USER\" \"$B\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "A real $USER:$USER where a dollar sign follows the colon."
+    },
+    {
+      "name": "corpus-allow-sed-pipe-delimiter",
+      "command": "echo \"=== unsafe occurrences outside budget ===\" && grep -rn \"unsafe\" --include=*.rs bins/ crates/ | grep -v \"^crates/godo-rt/\" | grep -v \"^crates/godo-kernels/\" | grep -v \"forbid(unsafe_code)\" | head -30; echo \"=== allow( in branch-changed rust files ===\"; for f in $(git diff --name-only 94119e1..HEAD -- '*.rs'); do grep -n \"#\\[allow(\\|#!\\[allow(\" \"$f\" 2>/dev/null | sed \"s|^|$f:|\"; done",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real $f:| in a double-quoted sed expression, where a pipe character follows the colon."
+    },
+    {
+      "name": "corpus-allow-awk-slash",
+      "command": "cd /home/ncenter/projects/godo-console-spa\nfor n in 13 14 15; do echo \"=== Task $n ===\"; awk \"/^## Task $n:/,/^\\\\*\\\\*Produces/\" doc/2026-09-04-console-spa-plan.md | grep -E '^\\*\\*Consumes' ; done\necho \"=== does an awk/gate exist for issue#141 ===\"\ngrep -rn 'Consumes' scripts/ 2>/dev/null | head -3; echo \"(none above = no gate)\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real $n:/ inside a double-quoted awk program, where a slash follows the colon."
+    },
+    {
+      "name": "corpus-allow-braced-branch-and-main-push",
+      "command": "git push --force-with-lease=merge/issue-232: origin \"${H}:refs/heads/merge/issue-232\"; echo \"branch push exit=$?\"; git ls-remote origin refs/heads/merge/issue-232; git push origin \"${H}:refs/heads/main\"; echo \"main push exit=$?\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus-adapted",
+      "why": "Real pushes whose refspecs brace the name, including the one toward main."
+    },
+    {
+      "name": "corpus-allow-show-var-colon-var",
+      "command": "cd /home/ncenter/projects/godo-rustdoc-scope\necho -n \"dirty: \"; git status --porcelain|wc -l; echo -n \"HEAD: \"; git rev-parse --short HEAD\necho -n \"cherry: \"; git cherry HEAD origin/feat/issue-232-doc-comment-reversal|wc -l\ncd /home/ncenter/projects/godo-lidar-tracker\ngit push origin feat/issue-232-doc-comment-reversal 2>&1 | tail -2\necho\necho \"=== 주장 검증: 헤딩은 f3e5909 에서 사라졌는데 그걸 가리키는 산문이 남았나 ===\"\nF=bins/godo-localizer-lidar/src/compute.rs\nfor c in f3e5909 4d14900 0cf829b a70798c 62c17a3 4190cfb; do\n  h=$(git show $c:$F 2>/dev/null | grep -cE '^//! # R6\\.4\\.2 Task 1[34]')\n  p=$(git show $c:$F 2>/dev/null | grep -cE '(///|//!|//).*R6\\.4\\.2 Task 1[34]')\n  printf \"  %s  헤딩 %s  그 이름을 부르는 줄 %s\\n\" \"$c\" \"$h\" \"$p\"\ndone\necho -n \"  a1c205c  헤딩 \"; git show a1c205c:$F | grep -cE '^//! # R6\\.4\\.2 Task 1[34]'\necho -n \"   그 이름을 부르는 줄 \"; git show a1c205c:$F | grep -cE '(///|//!|//).*R6\\.4\\.2 Task 1[34]'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "corpus",
+      "why": "A real git show $c:$F where another expansion follows the colon."
+    },
+    {
+      "name": "author-gating-bash-shell",
+      "command": "git push origin \"$H:refs/heads/main\"",
+      "shell": "/bin/bash",
+      "expect": "allow",
+      "source": "author",
+      "why": "The same shape is silent when SHELL is /bin/bash, because the zsh rules apply only when SHELL's basename is zsh."
+    },
+    {
+      "name": "author-gating-other-zsh-path",
+      "command": "git push origin \"$H:refs/heads/main\"",
+      "shell": "/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A different path whose basename is zsh still enables the rule."
+    },
+    {
+      "name": "author-gating-empty-shell",
+      "command": "git push origin \"$H:refs/heads/main\"",
+      "shell": "",
+      "expect": "allow",
+      "source": "author",
+      "why": "An empty SHELL has no zsh basename, so the rule stays silent."
+    },
+    {
+      "name": "author-deny-g-then-s",
+      "command": "echo $H:gs/a/b/",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "g followed by s is the global substitution modifier."
+    },
+    {
+      "name": "author-deny-g-then-ampersand-dquote",
+      "command": "echo \"$H:g&\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Inside double quotes g followed by & is the global repeat-substitution modifier."
+    },
+    {
+      "name": "author-unquoted-g-then-background",
+      "command": "echo $H:g& wait",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author+settled",
+      "why": "Measured on this host: an unquoted & is the background operator and ends the word, so zsh prints :g unchanged and applies no modifier."
+    },
+    {
+      "name": "author-allow-g-then-other",
+      "command": "echo $H:go",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "g followed by anything but s or & is not a modifier."
+    },
+    {
+      "name": "author-deny-host-path-t",
+      "command": "scp f $HOST:tmp/",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "t after the colon is the tail modifier, so a host:path without a leading slash is rewritten."
+    },
+    {
+      "name": "author-deny-user-colon-s",
+      "command": "chown \"$USER:staff\" f",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "s after the colon starts a substitution, which zsh rejects as a bad substitution."
+    },
+    {
+      "name": "author-deny-assignment-value",
+      "command": "REF=$H:refs/heads/main; git push origin \"$REF\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "An assignment value is expanded, so the modifier applies there too."
+    },
+    {
+      "name": "author-deny-hash-mid-word",
+      "command": "echo a#$H:r",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A # inside a word does not start a comment, so the expansion after it is live."
+    },
+    {
+      "name": "author-allow-comment",
+      "command": "echo ok # $H:refs",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A # at the start of a word begins a comment, which is never expanded."
+    },
+    {
+      "name": "author-allow-quote-before-colon",
+      "command": "echo \"$H\":refs",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The closing quote sits between the name and the colon, so no modifier is read."
+    },
+    {
+      "name": "author-allow-backslash-colon",
+      "command": "echo $H\\:refs",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A backslash before the colon makes it literal, so the name ends without a modifier."
+    },
+    {
+      "name": "author-deny-single-inside-double",
+      "command": "echo \"'$H:refs'\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Single quotes inside double quotes are ordinary characters and do not stop expansion."
+    },
+    {
+      "name": "author-allow-double-inside-single",
+      "command": "echo '\"$H:refs\"'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Double quotes inside single quotes are ordinary characters, and the single quotes stop expansion."
+    },
+    {
+      "name": "author-deny-bash-c-double-quoted",
+      "command": "bash -c \"git show $H:crates/x.rs\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "zsh expands a double-quoted argument before bash receives it, so handing it to another shell does not protect it."
+    },
+    {
+      "name": "author-allow-ansi-c-quoted",
+      "command": "echo $'$H:refs'",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "ANSI-C quoting expands no parameters."
+    },
+    {
+      "name": "author-deny-backticks",
+      "command": "echo `git show $H:crates/x.rs`",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A backtick body is expanded like a command substitution."
+    },
+    {
+      "name": "author-deny-dash-heredoc",
+      "command": "cat <<-EOF\n\tgit show $H:crates/x.rs\n\tEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "The <<- form strips leading tabs and still expands its body when the delimiter is unquoted."
+    },
+    {
+      "name": "author-allow-double-quoted-delimiter",
+      "command": "cat <<\"EOF\"\n$H:refs\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A double-quoted delimiter disables expansion of the heredoc body."
+    },
+    {
+      "name": "author-allow-backslash-delimiter",
+      "command": "cat <<\\EOF\n$H:refs\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A backslash-quoted delimiter disables expansion of the heredoc body."
+    },
+    {
+      "name": "author-allow-partly-quoted-delimiter",
+      "command": "cat <<E\"OF\"\n$H:refs\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Quoting any part of the delimiter disables expansion of the whole body."
+    },
+    {
+      "name": "author-allow-escaped-in-unquoted-heredoc",
+      "command": "cat <<EOF\n\\$H:refs\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A backslash before the dollar sign keeps it literal inside an unquoted heredoc body."
+    },
+    {
+      "name": "author-deny-single-quotes-in-unquoted-heredoc",
+      "command": "cat <<EOF\n'$H:refs'\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Single quotes in an unquoted heredoc body are literal characters and do not stop expansion."
+    },
+    {
+      "name": "author-deny-cmdsub-in-unquoted-heredoc",
+      "command": "cat <<EOF\n$(git show $H:crates/x.rs)\nEOF",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A command substitution in an unquoted heredoc body runs, and its words are expanded."
+    },
+    {
+      "name": "author-allow-special-parameter",
+      "command": "echo \"$@:t\"",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "The rule names only a NAME or a digit, so a special parameter is outside it even though zsh would apply the modifier."
+    },
+    {
+      "name": "author-deny-name-with-underscore-digit",
+      "command": "echo $H_1:r",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "A name containing an underscore and a digit is one name, so the colon follows it directly."
+    },
+    {
+      "name": "author-deny-uppercase-p",
+      "command": "git show $B:Plan.md",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Uppercase P is in the list, so a path beginning with P is resolved as a real path."
+    },
+    {
+      "name": "author-allow-uppercase-outside-list",
+      "command": "git show $B:Cargo.toml",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "Uppercase letters other than A, P and Q are not modifiers."
+    },
+    {
+      "name": "author-allow-colon-at-end",
+      "command": "echo $H:",
+      "shell": "/usr/bin/zsh",
+      "expect": "allow",
+      "source": "author",
+      "why": "A colon with nothing after it is not a modifier."
+    },
+    {
+      "name": "author-deny-parameter-zero",
+      "command": "cd $0:h",
+      "shell": "/usr/bin/zsh",
+      "expect": "deny",
+      "source": "author",
+      "why": "Positional parameter 0 takes the head modifier like any other digit."
+    }
+  ]
+}

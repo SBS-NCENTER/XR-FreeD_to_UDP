@@ -1,0 +1,1722 @@
+{
+  "rule": "lexer",
+  "kind": "component",
+  "reads": "one command string",
+  "cases": [
+    {
+      "name": "and-or-sequence-pipe",
+      "command": "a && b || c ; d | e",
+      "simple_commands": [
+        [
+          "a"
+        ],
+        [
+          "b"
+        ],
+        [
+          "c"
+        ],
+        [
+          "d"
+        ],
+        [
+          "e"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "Every control operator between commands separates simple commands, listed in source order."
+    },
+    {
+      "name": "subshell-parentheses",
+      "command": "(cd /x && git status) ; echo done",
+      "simple_commands": [
+        [
+          "cd",
+          "/x"
+        ],
+        [
+          "git",
+          "status"
+        ],
+        [
+          "echo",
+          "done"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A subshell's parentheses are not words, and the commands inside are listed in order."
+    },
+    {
+      "name": "brace-group-closing-brace-and-redirection",
+      "command": "{ git status; git log -1; } 2>&1 | tail -3",
+      "simple_commands": [
+        [
+          "git",
+          "status"
+        ],
+        [
+          "git",
+          "log",
+          "-1"
+        ],
+        [
+          "tail",
+          "-3"
+        ]
+      ],
+      "expansions": [],
+      "source": "author+settled",
+      "why": "A closing brace is not a word and is not listed, and a redirection and its target are removed before the argv is formed."
+    },
+    {
+      "name": "sudo-u-wrapper",
+      "command": "sudo -u ncenter git checkout main",
+      "simple_commands": [
+        [
+          "git",
+          "checkout",
+          "main"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "sudo, its -u option and that option's argument are stripped."
+    },
+    {
+      "name": "sudo-mixed-options",
+      "command": "sudo -E -u ncenter -H git push origin feat/x",
+      "simple_commands": [
+        [
+          "git",
+          "push",
+          "origin",
+          "feat/x"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "sudo options with and without arguments are all stripped, in any order."
+    },
+    {
+      "name": "env-assignments",
+      "command": "env A=1 B=\"x y\" git status --short",
+      "simple_commands": [
+        [
+          "git",
+          "status",
+          "--short"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "env and the assignments after it are stripped, including one whose quoted value holds a space."
+    },
+    {
+      "name": "timeout-duration",
+      "command": "timeout 30 cargo test -p godo-sync 2>&1 | tail -5",
+      "simple_commands": [
+        [
+          "cargo",
+          "test",
+          "-p",
+          "godo-sync"
+        ],
+        [
+          "tail",
+          "-5"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "timeout and its duration are stripped."
+    },
+    {
+      "name": "stacked-wrappers",
+      "command": "sudo -u ncenter env GIT_TRACE=1 timeout 30 git checkout main",
+      "simple_commands": [
+        [
+          "git",
+          "checkout",
+          "main"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "Wrappers in a row are stripped one after another."
+    },
+    {
+      "name": "nice-nohup-command-exec",
+      "command": "nice git fetch; nohup ./run.sh > log 2>&1 & command git status; exec git log -1",
+      "simple_commands": [
+        [
+          "git",
+          "fetch"
+        ],
+        [
+          "./run.sh"
+        ],
+        [
+          "git",
+          "status"
+        ],
+        [
+          "git",
+          "log",
+          "-1"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "nice, nohup, command and exec are each stripped, and a trailing & separates commands like ;."
+    },
+    {
+      "name": "git-global-options-kept",
+      "command": "git -C /path -c k=v push origin main",
+      "simple_commands": [
+        [
+          "git",
+          "-C",
+          "/path",
+          "-c",
+          "k=v",
+          "push",
+          "origin",
+          "main"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "git's own global options are arguments, not wrappers, and stay in the argv."
+    },
+    {
+      "name": "design-cd-then-git-dash-c-checkout",
+      "command": "cd /x && git -C /y checkout -b feat/z origin/main",
+      "simple_commands": [
+        [
+          "cd",
+          "/x"
+        ],
+        [
+          "git",
+          "-C",
+          "/y",
+          "checkout",
+          "-b",
+          "feat/z",
+          "origin/main"
+        ]
+      ],
+      "expansions": [],
+      "source": "design",
+      "why": "The design's checkout line splits into two simple commands with git's -C kept in place."
+    },
+    {
+      "name": "leading-assignments-with-expansion",
+      "command": "X=$Y GIT_TRACE=1 git status",
+      "simple_commands": [
+        [
+          "git",
+          "status"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "Y",
+          "next": " GI",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "Leading assignments are stripped from the argv, but an expansion inside one is still reported."
+    },
+    {
+      "name": "assignment-only-command-omitted",
+      "command": "H=$(git rev-parse HEAD); echo \"$H\"",
+      "simple_commands": [
+        [
+          "git",
+          "rev-parse",
+          "HEAD"
+        ],
+        [
+          "echo",
+          "$H"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": "\"",
+          "context": "dquote"
+        }
+      ],
+      "source": "author+settled",
+      "why": "A command that is only assignments yields no simple command and is not listed, but the substitution inside it is."
+    },
+    {
+      "name": "if-then-else-fi",
+      "command": "if git diff --quiet; then git merge --ff-only b; else echo dirty; fi",
+      "simple_commands": [
+        [
+          "git",
+          "diff",
+          "--quiet"
+        ],
+        [
+          "git",
+          "merge",
+          "--ff-only",
+          "b"
+        ],
+        [
+          "echo",
+          "dirty"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "if, then and else are stripped from the front of their commands, and the closing fi is not a command."
+    },
+    {
+      "name": "while-not-time-until",
+      "command": "while ! git fetch -q; do sleep 1; done; time cargo build; until true; do :; done",
+      "simple_commands": [
+        [
+          "git",
+          "fetch",
+          "-q"
+        ],
+        [
+          "sleep",
+          "1"
+        ],
+        [
+          "cargo",
+          "build"
+        ],
+        [
+          "true"
+        ],
+        [
+          ":"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "while followed by !, do, time and until are all stripped, and done is not a command."
+    },
+    {
+      "name": "keywords-as-arguments",
+      "command": "echo if then do else fi done",
+      "simple_commands": [
+        [
+          "echo",
+          "if",
+          "then",
+          "do",
+          "else",
+          "fi",
+          "done"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "Keywords are stripped only at the start of a command, never from the arguments."
+    },
+    {
+      "name": "for-loop-header",
+      "command": "for p in $pids; do kill $p; done",
+      "simple_commands": [
+        [
+          "for",
+          "p",
+          "in",
+          "$pids"
+        ],
+        [
+          "kill",
+          "$p"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "pids",
+          "next": "; d",
+          "context": "unquoted"
+        },
+        {
+          "name": "p",
+          "next": "; d",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author+settled",
+      "why": "A loop header is itself a simple command, whose words are for, the variable, in, and the list. That is where a list is written, and a list is what one rule reads."
+    },
+    {
+      "name": "for-loop-quoted-list-multiline",
+      "command": "for x in \"$L\"\ndo\n  echo \"$x\"\ndone",
+      "simple_commands": [
+        [
+          "for",
+          "x",
+          "in",
+          "$L"
+        ],
+        [
+          "echo",
+          "$x"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "L",
+          "next": "\"\nd",
+          "context": "dquote"
+        },
+        {
+          "name": "x",
+          "next": "\"\nd",
+          "context": "dquote"
+        }
+      ],
+      "source": "author",
+      "why": "Quote removal makes \"$L\" the same argv word as $L, so only the expansion's context tells a quoted list from a bare one, and a do alone on its line leaves nothing to list."
+    },
+    {
+      "name": "nested-command-substitution",
+      "command": "echo \"$(basename $(git rev-parse --show-toplevel))\"",
+      "simple_commands": [
+        [
+          "echo",
+          "$(basename $(git rev-parse --show-toplevel))"
+        ],
+        [
+          "basename",
+          "$(git rev-parse --show-toplevel)"
+        ],
+        [
+          "git",
+          "rev-parse",
+          "--show-toplevel"
+        ]
+      ],
+      "expansions": [],
+      "source": "author+settled",
+      "why": "An argv word keeps a substitution's source text verbatim, and nested substitutions are listed in the source order of their opening delimiters, outermost first."
+    },
+    {
+      "name": "expansion-context-innermost",
+      "command": "echo \"$H:r $(git show $H:crates/x.rs | grep -c \"$P\")\"",
+      "simple_commands": [
+        [
+          "echo",
+          "$H:r $(git show $H:crates/x.rs | grep -c \"$P\")"
+        ],
+        [
+          "git",
+          "show",
+          "$H:crates/x.rs"
+        ],
+        [
+          "grep",
+          "-c",
+          "$P"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":r ",
+          "context": "dquote"
+        },
+        {
+          "name": "H",
+          "next": ":cr",
+          "context": "cmdsub"
+        },
+        {
+          "name": "P",
+          "next": "\")\"",
+          "context": "dquote"
+        }
+      ],
+      "source": "author+settled",
+      "why": "Every expansion takes the context of the innermost construct enclosing it, so a bare name inside a substitution is cmdsub and a double-quoted name inside that substitution is dquote again."
+    },
+    {
+      "name": "backticks",
+      "command": "echo `git rev-parse --short HEAD` $B",
+      "simple_commands": [
+        [
+          "echo",
+          "`git rev-parse --short HEAD`",
+          "$B"
+        ],
+        [
+          "git",
+          "rev-parse",
+          "--short",
+          "HEAD"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "B",
+          "next": "",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "A backtick body is a command substitution whose command is listed after the command containing it."
+    },
+    {
+      "name": "backticks-expansion-inside",
+      "command": "x=`git show $c:crates/x.rs`; echo $x",
+      "simple_commands": [
+        [
+          "git",
+          "show",
+          "$c:crates/x.rs"
+        ],
+        [
+          "echo",
+          "$x"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "c",
+          "next": ":cr",
+          "context": "cmdsub"
+        },
+        {
+          "name": "x",
+          "next": "",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "An expansion inside backticks has the cmdsub context."
+    },
+    {
+      "name": "heredoc-unquoted",
+      "command": "cat <<EOF\nref $H:refs\nEOF\necho after",
+      "simple_commands": [
+        [
+          "cat"
+        ],
+        [
+          "echo",
+          "after"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":re",
+          "context": "heredoc"
+        }
+      ],
+      "source": "author",
+      "why": "An unquoted heredoc body is not a command, but its expansions are reported with the heredoc context."
+    },
+    {
+      "name": "design-heredoc-quoted-macro",
+      "command": "cat <<'EOF'\nmacro_rules! m { ($t:ty) => {} }\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [],
+      "source": "design",
+      "why": "A single-quoted delimiter yields no expansions from the body, so the macro fragment reports nothing."
+    },
+    {
+      "name": "heredoc-double-quoted-delimiter",
+      "command": "cat <<\"EOF\" > out.txt\n$H ${PIPESTATUS[0]}\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A double-quoted delimiter yields no expansions."
+    },
+    {
+      "name": "heredoc-backslash-delimiter",
+      "command": "cat <<\\EOF\n$H\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A backslash-quoted delimiter is a quoted delimiter and yields no expansions."
+    },
+    {
+      "name": "heredoc-partly-quoted-delimiter",
+      "command": "cat <<E\"OF\"\n$H\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "Quoting any part of the delimiter makes it quoted, and the body ends at the plain spelling EOF."
+    },
+    {
+      "name": "heredoc-dash-tab-stripped",
+      "command": "cat <<-EOF\n\tpath $H:t end\n\tEOF\necho $G",
+      "simple_commands": [
+        [
+          "cat"
+        ],
+        [
+          "echo",
+          "$G"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":t ",
+          "context": "heredoc"
+        },
+        {
+          "name": "G",
+          "next": "",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "The <<- form ends at a tab-indented delimiter and still expands its body."
+    },
+    {
+      "name": "heredoc-body-quotes-are-literal",
+      "command": "cat <<EOF\n'$H' \"$G\" \\$K\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": "' \"",
+          "context": "heredoc"
+        },
+        {
+          "name": "G",
+          "next": "\" \\",
+          "context": "heredoc"
+        }
+      ],
+      "source": "author",
+      "why": "Quotes in an unquoted heredoc body are ordinary characters, so both names expand with the heredoc context, while a backslash still escapes $K."
+    },
+    {
+      "name": "heredoc-operator-line-continues",
+      "command": "cat <<EOF | grep -c x; echo \"$A\"\n$B x\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ],
+        [
+          "grep",
+          "-c",
+          "x"
+        ],
+        [
+          "echo",
+          "$A"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "A",
+          "next": "\"\n$",
+          "context": "dquote"
+        },
+        {
+          "name": "B",
+          "next": " x\n",
+          "context": "heredoc"
+        }
+      ],
+      "source": "author",
+      "why": "Commands after the heredoc operator on the same line come before the body in source order."
+    },
+    {
+      "name": "two-heredocs-one-line",
+      "command": "paste <<A <<'B'\none $X!\nA\ntwo $Y\nB",
+      "simple_commands": [
+        [
+          "paste"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "X",
+          "next": "!\nA",
+          "context": "heredoc"
+        }
+      ],
+      "source": "author",
+      "why": "Two heredocs on one line take their bodies in order, and only the unquoted one yields an expansion."
+    },
+    {
+      "name": "heredoc-body-command-substitution",
+      "command": "W=.superpowers/sdd/2026-08-31-operator-console-plan; cat >> $W/progress.md <<EOF\n- Operator, $(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M KST'): **this session stops after T4**\nEOF\necho ok",
+      "simple_commands": [
+        [
+          "cat"
+        ],
+        [
+          "date",
+          "+%Y-%m-%d %H:%M KST"
+        ],
+        [
+          "echo",
+          "ok"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "W",
+          "next": "/pr",
+          "context": "unquoted"
+        }
+      ],
+      "source": "corpus-adapted+settled",
+      "why": "A heredoc whose delimiter is unquoted is live: measured on this host, its command substitution runs, so its command is listed like any other."
+    },
+    {
+      "name": "heredoc-delimiter-as-line-prefix",
+      "command": "cat <<EOF\nEOFX $G\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "G",
+          "next": "\nEO",
+          "context": "heredoc"
+        }
+      ],
+      "source": "author",
+      "why": "A body line that only begins with the delimiter does not end the heredoc."
+    },
+    {
+      "name": "heredoc-unterminated",
+      "command": "cat <<EOF\nline $G",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "G",
+          "next": "",
+          "context": "heredoc"
+        }
+      ],
+      "source": "author+settled",
+      "why": "Measured on this host: the shell reads an unterminated heredoc's body to the end of the input and runs it, so this is a body and not a parse error. An unterminated quote still is one."
+    },
+    {
+      "name": "here-string",
+      "command": "grep -c x <<< \"$H\"",
+      "simple_commands": [
+        [
+          "grep",
+          "-c",
+          "x"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": "\"",
+          "context": "dquote"
+        }
+      ],
+      "source": "author",
+      "why": "<<< is a here-string, not a heredoc, so its word is read on the same line and no body follows."
+    },
+    {
+      "name": "comments",
+      "command": "echo a # it's $H:r\necho b#c $#",
+      "simple_commands": [
+        [
+          "echo",
+          "a"
+        ],
+        [
+          "echo",
+          "b#c",
+          "$#"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A word-initial # starts a comment in which an apostrophe opens no quote, a # inside a word is literal, and $# is a special parameter that is not reported."
+    },
+    {
+      "name": "escaped-dollar-forms",
+      "command": "echo \\$H \"\\$G\" '$K' \\\\$L",
+      "simple_commands": [
+        [
+          "echo",
+          "$H",
+          "$G",
+          "$K",
+          "\\$L"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "L",
+          "next": "",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "A backslash escapes the dollar sign outside and inside double quotes, but an escaped backslash leaves the following $L live."
+    },
+    {
+      "name": "ansi-c-quoting",
+      "command": "echo $'it\\'s $H' $G",
+      "simple_commands": [
+        [
+          "echo",
+          "it's $H",
+          "$G"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "G",
+          "next": "",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "$'...' interprets its escapes and expands no parameter."
+    },
+    {
+      "name": "single-inside-double-and-reverse",
+      "command": "echo \"'$H'\" '\"$G\"'",
+      "simple_commands": [
+        [
+          "echo",
+          "'$H'",
+          "\"$G\""
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": "'\" ",
+          "context": "dquote"
+        }
+      ],
+      "source": "author",
+      "why": "Single quotes inside double quotes do not stop expansion, and double quotes inside single quotes do not start it."
+    },
+    {
+      "name": "design-bash-c-single-quoted",
+      "command": "bash -c 'cargo test | tail; echo ${PIPESTATUS[0]}'",
+      "simple_commands": [
+        [
+          "bash",
+          "-c",
+          "cargo test | tail; echo ${PIPESTATUS[0]}"
+        ]
+      ],
+      "expansions": [],
+      "source": "design",
+      "why": "The pipeline inside a single-quoted argument is one argv word, not a simple command, and yields no expansion."
+    },
+    {
+      "name": "braced-forms-name-and-next",
+      "command": "echo ${H}:refs ${PIPESTATUS[0]} ${H:-default} $pipestatus[1]",
+      "simple_commands": [
+        [
+          "echo",
+          "${H}:refs",
+          "${PIPESTATUS[0]}",
+          "${H:-default}",
+          "$pipestatus[1]"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": "}:r",
+          "context": "unquoted"
+        },
+        {
+          "name": "PIPESTATUS",
+          "next": "[0]",
+          "context": "unquoted"
+        },
+        {
+          "name": "H",
+          "next": ":-d",
+          "context": "unquoted"
+        },
+        {
+          "name": "pipestatus",
+          "next": "[1]",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "For a braced form the name stops at the first non-name character inside the braces, and next starts there."
+    },
+    {
+      "name": "braced-unbraced-records-collide",
+      "command": "echo ${H:t} $H:t}",
+      "simple_commands": [
+        [
+          "echo",
+          "${H:t}",
+          "$H:t}"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":t}",
+          "context": "unquoted"
+        },
+        {
+          "name": "H",
+          "next": ":t}",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author+settled",
+      "why": "The two produce the same name and the same following characters, which is why the record also carries whether it was braced -- one rule denies the unbraced form and allows the braced one, and nothing else separates them."
+    },
+    {
+      "name": "zsh-flag-and-length-forms",
+      "command": "set -- ${=spec}; for p in ${(f)pids}; do :; done; echo ${#PIPESTATUS[@]}",
+      "simple_commands": [
+        [
+          "set",
+          "--",
+          "${=spec}"
+        ],
+        [
+          "for",
+          "p",
+          "in",
+          "${(f)pids}"
+        ],
+        [
+          ":"
+        ],
+        [
+          "echo",
+          "${#PIPESTATUS[@]}"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "spec",
+          "next": "}; ",
+          "context": "unquoted"
+        },
+        {
+          "name": "pids",
+          "next": "}; ",
+          "context": "unquoted"
+        },
+        {
+          "name": "PIPESTATUS",
+          "next": "[@]",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author+settled",
+      "why": "The record names the parameter actually named, with a leading # and any parenthesised flag group skipped, and keeps the flags themselves, because one rule must allow a split that was asked for while denying one that was not."
+    },
+    {
+      "name": "positional-parameters",
+      "command": "echo $1:t \"$2\" ${3}",
+      "simple_commands": [
+        [
+          "echo",
+          "$1:t",
+          "$2",
+          "${3}"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "1",
+          "next": ":t ",
+          "context": "unquoted"
+        },
+        {
+          "name": "2",
+          "next": "\" $",
+          "context": "dquote"
+        },
+        {
+          "name": "3",
+          "next": "}",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "A digit after the dollar sign is reported as the name, braced or not."
+    },
+    {
+      "name": "special-parameters-not-reported",
+      "command": "echo $? $# $@ $* $$ $! $-",
+      "simple_commands": [
+        [
+          "echo",
+          "$?",
+          "$#",
+          "$@",
+          "$*",
+          "$$",
+          "$!",
+          "$-"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "Special parameters are neither a NAME nor a digit, so none is reported."
+    },
+    {
+      "name": "arithmetic-is-not-substitution",
+      "command": "echo $((n+1))",
+      "simple_commands": [
+        [
+          "echo",
+          "$((n+1))"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "$(( )) is arithmetic, not a command substitution, and the bare n inside it is not a dollar expansion."
+    },
+    {
+      "name": "paren-inside-quotes-inside-substitution",
+      "command": "echo \"[$(echo \")\")]\"",
+      "simple_commands": [
+        [
+          "echo",
+          "[$(echo \")\")]"
+        ],
+        [
+          "echo",
+          ")"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A closing parenthesis inside quotes within $( ) does not end the substitution."
+    },
+    {
+      "name": "line-continuation",
+      "command": "git \\\n  checkout main",
+      "simple_commands": [
+        [
+          "git",
+          "checkout",
+          "main"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A backslash-newline joins two lines into one simple command."
+    },
+    {
+      "name": "unterminated-double-quote",
+      "command": "echo \"abc",
+      "simple_commands": null,
+      "expansions": null,
+      "source": "author",
+      "why": "An unterminated double quote is a parse error, which callers read as allow."
+    },
+    {
+      "name": "unterminated-single-quote-on-later-line",
+      "command": "git push origin main\necho 'done",
+      "simple_commands": null,
+      "expansions": null,
+      "source": "author",
+      "why": "An unterminated single quote on any line makes the whole command a parse error, the valid line before it included."
+    },
+    {
+      "name": "unterminated-command-substitution",
+      "command": "echo $(date",
+      "simple_commands": null,
+      "expansions": null,
+      "source": "author",
+      "why": "An unterminated $( is a parse error in zsh."
+    },
+    {
+      "name": "unterminated-backtick",
+      "command": "echo `date",
+      "simple_commands": null,
+      "expansions": null,
+      "source": "author",
+      "why": "An unterminated backtick is a parse error in zsh."
+    },
+    {
+      "name": "redirection-targets",
+      "command": "echo x > \"$S/log\" 2>&1 < in.txt",
+      "simple_commands": [
+        [
+          "echo",
+          "x"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "S",
+          "next": "/lo",
+          "context": "dquote"
+        }
+      ],
+      "source": "author",
+      "why": "Redirection operators and their targets are not argv words, but an expansion in a target is still reported."
+    },
+    {
+      "name": "brace-expansion-is-not-a-group",
+      "command": "echo {a,b} && { echo c; }",
+      "simple_commands": [
+        [
+          "echo",
+          "{a,b}"
+        ],
+        [
+          "echo",
+          "c"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A { attached to other characters is an ordinary word, and only a standalone { is the group keyword."
+    },
+    {
+      "name": "export-path-list",
+      "command": "export PATH=$HOME/.cargo/bin:$PATH",
+      "simple_commands": [
+        [
+          "export",
+          "PATH=$HOME/.cargo/bin:$PATH"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "HOME",
+          "next": "/.c",
+          "context": "unquoted"
+        },
+        {
+          "name": "PATH",
+          "next": "",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "An assignment-looking word after a command name is an argument, and both expansions in it are reported."
+    },
+    {
+      "name": "bash-c-double-quoted",
+      "command": "bash -c \"git show $H:crates/x.rs\"",
+      "simple_commands": [
+        [
+          "bash",
+          "-c",
+          "git show $H:crates/x.rs"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":cr",
+          "context": "dquote"
+        }
+      ],
+      "source": "author",
+      "why": "A double-quoted argument handed to another shell is one argv word whose expansion zsh still performs."
+    },
+    {
+      "name": "single-quoted-substitution-text",
+      "command": "echo '$(rm -rf /)'",
+      "simple_commands": [
+        [
+          "echo",
+          "$(rm -rf /)"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "$( inside single quotes is text, not a command."
+    },
+    {
+      "name": "negation-assignment-wrapper-mixed",
+      "command": "! GIT_TRACE=1 sudo -u ncenter git diff --quiet",
+      "simple_commands": [
+        [
+          "git",
+          "diff",
+          "--quiet"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "A keyword, an assignment and a wrapper are stripped in the order they appear."
+    },
+    {
+      "name": "xargs-is-not-a-wrapper",
+      "command": "git diff --name-only | xargs git checkout --",
+      "simple_commands": [
+        [
+          "git",
+          "diff",
+          "--name-only"
+        ],
+        [
+          "xargs",
+          "git",
+          "checkout",
+          "--"
+        ]
+      ],
+      "expansions": [],
+      "source": "author",
+      "why": "xargs is not in the wrapper list, so its argv keeps xargs first."
+    },
+    {
+      "name": "next-crosses-an-operator",
+      "command": "echo $H:g& wait",
+      "simple_commands": [
+        [
+          "echo",
+          "$H:g"
+        ],
+        [
+          "wait"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":g&",
+          "context": "unquoted"
+        }
+      ],
+      "source": "author",
+      "why": "next is the raw three characters after the name even where & ends the word, so a consumer must not read :g& here as a modifier."
+    },
+    {
+      "name": "design-cmdsub-assignment",
+      "command": "x=$(git show $H:README.md)",
+      "simple_commands": [
+        [
+          "git",
+          "show",
+          "$H:README.md"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":RE",
+          "context": "cmdsub"
+        }
+      ],
+      "source": "design",
+      "why": "The design's modifier line has an assignment-only outer command and one inner command whose expansion is in the cmdsub context."
+    },
+    {
+      "name": "design-heredoc-pipestatus",
+      "command": "cat <<EOF\n${PIPESTATUS[0]}\nEOF",
+      "simple_commands": [
+        [
+          "cat"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "PIPESTATUS",
+          "next": "[0]",
+          "context": "heredoc"
+        }
+      ],
+      "source": "design",
+      "why": "The design's PIPESTATUS heredoc line reports one braced expansion with the heredoc context."
+    },
+    {
+      "name": "corpus-loop-with-substitution-assignments",
+      "command": "for c in b594ee7 4f85b5f; do n=$(git show $c:crates/godo-config/src/tracker.rs | grep -c '#\\[godo('); r=$(git show $c:crates/godo-config/src/tracker.rs | grep -c 'range *='); echo \"$c  declared=$n  ranged=$r  undeclared=$((82-n))\"; done",
+      "simple_commands": [
+        [
+          "for",
+          "c",
+          "in",
+          "b594ee7",
+          "4f85b5f"
+        ],
+        [
+          "git",
+          "show",
+          "$c:crates/godo-config/src/tracker.rs"
+        ],
+        [
+          "grep",
+          "-c",
+          "#\\[godo("
+        ],
+        [
+          "git",
+          "show",
+          "$c:crates/godo-config/src/tracker.rs"
+        ],
+        [
+          "grep",
+          "-c",
+          "range *="
+        ],
+        [
+          "echo",
+          "$c  declared=$n  ranged=$r  undeclared=$((82-n))"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "c",
+          "next": ":cr",
+          "context": "cmdsub"
+        },
+        {
+          "name": "c",
+          "next": ":cr",
+          "context": "cmdsub"
+        },
+        {
+          "name": "c",
+          "next": "  d",
+          "context": "dquote"
+        },
+        {
+          "name": "n",
+          "next": "  r",
+          "context": "dquote"
+        },
+        {
+          "name": "r",
+          "next": "  u",
+          "context": "dquote"
+        }
+      ],
+      "source": "corpus-adapted",
+      "why": "A real loop whose assignment-only commands each hide a two-stage pipeline, with a # inside single quotes and expansions in both cmdsub and dquote contexts."
+    },
+    {
+      "name": "corpus-quoted-python-heredoc-then-loop",
+      "command": "python3 - <<'EOF'\nimport pathlib,re\nfor rev in (\"before\",\"after\"):\n    pass\nEOF\nfor rev in 82e9def~1 82e9def; do\n  o=$(git show $rev:crates/godo-lidar/src/dense.rs | grep -E '^\\s*//' | grep -o '(' | wc -l)\ndone",
+      "simple_commands": [
+        [
+          "python3",
+          "-"
+        ],
+        [
+          "for",
+          "rev",
+          "in",
+          "82e9def~1",
+          "82e9def"
+        ],
+        [
+          "git",
+          "show",
+          "$rev:crates/godo-lidar/src/dense.rs"
+        ],
+        [
+          "grep",
+          "-E",
+          "^\\s*//"
+        ],
+        [
+          "grep",
+          "-o",
+          "("
+        ],
+        [
+          "wc",
+          "-l"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "rev",
+          "next": ":cr",
+          "context": "cmdsub"
+        }
+      ],
+      "source": "corpus-adapted",
+      "why": "A real quoted Python heredoc whose body holds a Python for line, then a shell loop, so the body must not be read as commands."
+    },
+    {
+      "name": "corpus-bare-lease-push-with-zsh-pipestatus",
+      "command": "git push --force-with-lease origin feat/issue-175-journal-panel 2>&1 | tail -4; echo \"PUSH_EXIT=${pipestatus[1]}\"; echo \"=== ahead of main ===\"; git rev-list --left-right --count origin/main...HEAD",
+      "simple_commands": [
+        [
+          "git",
+          "push",
+          "--force-with-lease",
+          "origin",
+          "feat/issue-175-journal-panel"
+        ],
+        [
+          "tail",
+          "-4"
+        ],
+        [
+          "echo",
+          "PUSH_EXIT=${pipestatus[1]}"
+        ],
+        [
+          "echo",
+          "=== ahead of main ==="
+        ],
+        [
+          "git",
+          "rev-list",
+          "--left-right",
+          "--count",
+          "origin/main...HEAD"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "pipestatus",
+          "next": "[1]",
+          "context": "dquote"
+        }
+      ],
+      "source": "corpus",
+      "why": "A real push whose redirection and pipe are split out, with the zsh pipestatus spelling inside double quotes."
+    },
+    {
+      "name": "corpus-timeout-grep-or",
+      "command": "timeout 300 cargo fmt -p godo-localizer-lidar -- --check 2>&1 | head -30; echo \"FMT-EXIT:${PIPESTATUS[0]}\"; echo \"--- probe residue check ---\"; grep -n \"TEMPORARY T4 PROBE\\|t4_probe_numbers\\|REMOVE BEFORE HANDOVER\" bins/godo-localizer-lidar/src/compute.rs || echo \"none\"; echo \"--- git status ---\"; git status --short",
+      "simple_commands": [
+        [
+          "cargo",
+          "fmt",
+          "-p",
+          "godo-localizer-lidar",
+          "--",
+          "--check"
+        ],
+        [
+          "head",
+          "-30"
+        ],
+        [
+          "echo",
+          "FMT-EXIT:${PIPESTATUS[0]}"
+        ],
+        [
+          "echo",
+          "--- probe residue check ---"
+        ],
+        [
+          "grep",
+          "-n",
+          "TEMPORARY T4 PROBE\\|t4_probe_numbers\\|REMOVE BEFORE HANDOVER",
+          "bins/godo-localizer-lidar/src/compute.rs"
+        ],
+        [
+          "echo",
+          "none"
+        ],
+        [
+          "echo",
+          "--- git status ---"
+        ],
+        [
+          "git",
+          "status",
+          "--short"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "PIPESTATUS",
+          "next": "[0]",
+          "context": "dquote"
+        }
+      ],
+      "source": "corpus",
+      "why": "A real gate line with a timeout wrapper, || and a double-quoted pattern whose backslashes stay because they escape nothing there."
+    },
+    {
+      "name": "corpus-conflict-markers-inside-nested-quotes",
+      "command": "for f in $R $D; do echo \"  $f: open/base/close=$(grep -cE '^(<<<<<<<|\\|\\|\\|\\|\\|\\|\\||>>>>>>>)' $f)  '=======' here=$(grep -cx '=======' $f) main=$(git show origin/main:$f | grep -cx '=======') branch=$(git show f552d04:$f | grep -cx '=======')\"; done",
+      "simple_commands": [
+        [
+          "for",
+          "f",
+          "in",
+          "$R",
+          "$D"
+        ],
+        [
+          "echo",
+          "  $f: open/base/close=$(grep -cE '^(<<<<<<<|\\|\\|\\|\\|\\|\\|\\||>>>>>>>)' $f)  '=======' here=$(grep -cx '=======' $f) main=$(git show origin/main:$f | grep -cx '=======') branch=$(git show f552d04:$f | grep -cx '=======')"
+        ],
+        [
+          "grep",
+          "-cE",
+          "^(<<<<<<<|\\|\\|\\|\\|\\|\\|\\||>>>>>>>)",
+          "$f"
+        ],
+        [
+          "grep",
+          "-cx",
+          "=======",
+          "$f"
+        ],
+        [
+          "git",
+          "show",
+          "origin/main:$f"
+        ],
+        [
+          "grep",
+          "-cx",
+          "======="
+        ],
+        [
+          "git",
+          "show",
+          "f552d04:$f"
+        ],
+        [
+          "grep",
+          "-cx",
+          "======="
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "R",
+          "next": " $D",
+          "context": "unquoted"
+        },
+        {
+          "name": "D",
+          "next": "; d",
+          "context": "unquoted"
+        },
+        {
+          "name": "f",
+          "next": ": o",
+          "context": "dquote"
+        },
+        {
+          "name": "f",
+          "next": ")  ",
+          "context": "cmdsub"
+        },
+        {
+          "name": "f",
+          "next": ") m",
+          "context": "cmdsub"
+        },
+        {
+          "name": "f",
+          "next": " | ",
+          "context": "cmdsub"
+        },
+        {
+          "name": "f",
+          "next": " | ",
+          "context": "cmdsub"
+        }
+      ],
+      "source": "corpus-adapted",
+      "why": "A real line where <<<<<<< sits in single quotes inside $( ) inside double quotes, so it must not open a here-string or heredoc."
+    },
+    {
+      "name": "corpus-heredoc-operator-then-and",
+      "command": "git status --short && git add -A && git commit -q -F - <<'MSG' && git log --oneline -1\nfeat(issue#221): the target link is a step somebody performs, and now something says so\n\n`git worktree add` creates no `target` symlink, nothing warns, and the build\nsucceeds — onto the SD card the arrangement exists to protect. One worktree made\non 2026-09-09 put **4.4 GB** there in its first `--workspace` gate.\nMSG",
+      "simple_commands": [
+        [
+          "git",
+          "status",
+          "--short"
+        ],
+        [
+          "git",
+          "add",
+          "-A"
+        ],
+        [
+          "git",
+          "commit",
+          "-q",
+          "-F",
+          "-"
+        ],
+        [
+          "git",
+          "log",
+          "--oneline",
+          "-1"
+        ]
+      ],
+      "expansions": [],
+      "source": "corpus-adapted",
+      "why": "A real commit whose heredoc operator is followed by && on the same line, so the command after it is listed before the body ends."
+    },
+    {
+      "name": "braced-flag-distinguishes-the-two-spellings",
+      "command": "echo $H:t ${H:t}",
+      "simple_commands": [
+        [
+          "echo",
+          "$H:t",
+          "${H:t}"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":t ",
+          "context": "unquoted",
+          "braced": false,
+          "flags": "",
+          "pos": 5
+        },
+        {
+          "name": "H",
+          "next": ":t}",
+          "context": "unquoted",
+          "braced": true,
+          "flags": "",
+          "pos": 10
+        }
+      ],
+      "source": "implementer",
+      "why": "The two differ in nothing a caller can see except the braced flag, and one rule denies the first and allows the second."
+    },
+    {
+      "name": "flags-are-kept-so-a-requested-split-is-visible",
+      "command": "for x in ${=L}; do :; done",
+      "simple_commands": [
+        [
+          "for",
+          "x",
+          "in",
+          "${=L}"
+        ],
+        [
+          ":"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "L",
+          "next": "}; ",
+          "context": "unquoted",
+          "braced": true,
+          "flags": "="
+        }
+      ],
+      "source": "implementer",
+      "why": "A split that was asked for is allowed and one that was assumed is not, so the flag has to survive into the record."
+    },
+    {
+      "name": "parenthesised-flag-group-is-skipped-to-the-name",
+      "command": "for p in ${(f)pids}; do :; done",
+      "simple_commands": [
+        [
+          "for",
+          "p",
+          "in",
+          "${(f)pids}"
+        ],
+        [
+          ":"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "pids",
+          "next": "}; ",
+          "context": "unquoted",
+          "braced": true,
+          "flags": "(f)"
+        }
+      ],
+      "source": "implementer",
+      "why": "The parameter actually named is pids, and the flag group is what says the split was requested."
+    },
+    {
+      "name": "length-form-names-the-parameter-not-the-hash",
+      "command": "echo ${#PIPESTATUS[@]}",
+      "simple_commands": [
+        [
+          "echo",
+          "${#PIPESTATUS[@]}"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "PIPESTATUS",
+          "next": "[@]",
+          "context": "unquoted",
+          "braced": true,
+          "flags": "#"
+        }
+      ],
+      "source": "implementer",
+      "why": "The rule reads the parameter named, not the characters the expansion begins with, so the length form is the same defect in another spelling."
+    },
+    {
+      "name": "position-points-at-the-dollar",
+      "command": "git push origin \"$H:refs/heads/main\"",
+      "simple_commands": [
+        [
+          "git",
+          "push",
+          "origin",
+          "$H:refs/heads/main"
+        ]
+      ],
+      "expansions": [
+        {
+          "name": "H",
+          "next": ":re",
+          "context": "dquote",
+          "braced": false,
+          "pos": 17
+        }
+      ],
+      "source": "implementer",
+      "why": "A caller that reports what it matched needs where it was, and the position is the dollar rather than the name."
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "rule": "notepad-absent",
+  "reads": "the roster's text (or null when it cannot be read), the session id, whether the notepad exists, and whether the session root holds its marker",
+  "cases": [
+    {
+      "name": "prompt-working-row-no-file",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": "# roster\naaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa  09.20-x09\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": true,
+      "source": "design",
+      "why": "A working row with no notepad file is exactly the condition the rule exists to catch."
+    },
+    {
+      "name": "prompt-working-row-with-file",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": "# roster\naaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa  09.20-x09\n",
+      "notepad_exists": true,
+      "root_present": true,
+      "expect": false,
+      "source": "design",
+      "why": "An existing file silences the rule whatever it holds: an empty notepad is a session that owes nothing."
+    },
+    {
+      "name": "seat-row-with-no-file",
+      "session_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "roster": "# roster\nbbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb  10.04-ochest01  seat\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": true,
+      "source": "design",
+      "why": "The seat keeps a notepad as a lane does, so its row with no file is told too."
+    },
+    {
+      "name": "id-the-roster-does-not-name",
+      "session_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      "roster": "# roster\ncccccccc-cccc-cccc-cccc-cccccccccccc  09.20-x11\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": false,
+      "source": "design",
+      "why": "A session the roster does not name is not claimed, whatever its notepad holds."
+    },
+    {
+      "name": "unreadable-roster",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": null,
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": false,
+      "source": "design",
+      "why": "The rule is silent whenever it cannot tell, and an unreadable roster is exactly that."
+    },
+    {
+      "name": "root-absent",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": null,
+      "notepad_exists": false,
+      "root_present": false,
+      "expect": false,
+      "source": "design",
+      "why": "A session root without its marker is the other named silent case, checked before the roster is even opened."
+    },
+    {
+      "name": "empty-session-id",
+      "session_id": "",
+      "roster": "# roster\ncccccccc-cccc-cccc-cccc-cccccccccccc  09.20-x11\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": false,
+      "source": "design",
+      "why": "An anonymous session cannot be matched against any row, so nothing is claimed."
+    },
+    {
+      "name": "id-only-in-a-later-field",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": "# roster\neeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee  aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa  seat\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": false,
+      "source": "author",
+      "why": "The match is on the first field only; the id standing in another row's name field is not a row of its own."
+    },
+    {
+      "name": "working-row-with-a-window",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": "# roster\naaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa  09.20-x09  window=650000\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": true,
+      "source": "author",
+      "why": "window= is a trailing field on a lane's row, not a role, so it must not silence the rule."
+    },
+    {
+      "name": "comment-and-blank-lines-are-skipped",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": "# The lanes this seat is conducting RIGHT NOW.\n#\n#   <session-uuid>  <name>  [seat]  [window=<tokens>]\n\naaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa  09.20-x09\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": true,
+      "source": "author",
+      "why": "The header's own comment lines and the blank line before the real row must not stop it from being found."
+    },
+    {
+      "name": "id-mentioned-only-in-a-comment-line",
+      "session_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      "roster": "# aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa  09.20-x09\nffffffff-ffff-ffff-ffff-ffffffffffff  09.20-x14\n",
+      "notepad_exists": false,
+      "root_present": true,
+      "expect": false,
+      "source": "author",
+      "why": "A commented-out mention of the id is not a row; only an uncommented first field claims a session, the other direction of the case above."
+    }
+  ]
+}

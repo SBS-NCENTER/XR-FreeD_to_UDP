@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.x, Flask, waitress, pytest (backend); Svelte + Vite, vitest (frontend); PowerShell setup scripts (venv/npm build/firewall).
 
-**Reference spec:** `docs/superpowers/specs/2026-06-16-xrfd-dashboard-svelte-migration-design.md`
+**Reference spec:** `doc/2026-06-16-xrfd-dashboard-svelte-migration-design.md`
 **Source of truth for protocol logic:** the existing `tools/xrfd_dashboard.ps1` (regexes, fps calc, reboot detection).
 
 **JSON contract** (snapshot consumed by the frontend — keep these exact keys):

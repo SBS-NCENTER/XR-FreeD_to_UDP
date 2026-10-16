@@ -1,0 +1,193 @@
+{
+  "rule": "agent-grant",
+  "reads": "the tool name, the roster's text, the session's id and name, and the grant file's text",
+  "cases": [
+    {
+      "name": "deny-lane-agent-no-grant",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "",
+      "expect": "deny",
+      "source": "design",
+      "why": "A lane with no grant line is the case the rule exists for: three launches in one afternoon were caught only by the lanes' own reports."
+    },
+    {
+      "name": "deny-lane-task-tool-name",
+      "tool": "Task",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "",
+      "expect": "deny",
+      "source": "author",
+      "why": "The older name of the same tool launches the same subagent."
+    },
+    {
+      "name": "allow-seat",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-seat",
+      "session_name": "09.24-ochest01",
+      "grants": "",
+      "expect": "allow",
+      "source": "design",
+      "why": "The seat is the row whose third field is the role seat, read from the roster the seat owns rather than from a name pattern."
+    },
+    {
+      "name": "allow-seat-with-a-window",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat  window=650000\n",
+      "session_id": "uuid-seat",
+      "session_name": "09.24-ochest01",
+      "grants": "",
+      "expect": "allow",
+      "source": "author",
+      "why": "A window= token after the role leaves the row the seat's."
+    },
+    {
+      "name": "deny-the-old-handoff-mark",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  handoff=70\n",
+      "session_id": "uuid-seat",
+      "session_name": "09.24-ochest01",
+      "grants": "",
+      "expect": "deny",
+      "source": "author",
+      "why": "THE SEPARATING INPUT for the role token: handoff= is not the role, so a row carrying only it holds nothing."
+    },
+    {
+      "name": "deny-seat-out-of-its-field",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  window=650000  seat\n",
+      "session_id": "uuid-seat",
+      "session_name": "09.24-ochest01",
+      "grants": "",
+      "expect": "deny",
+      "source": "author",
+      "why": "The role is the third field exactly; the word later in a row is not it."
+    },
+    {
+      "name": "deny-seat-as-a-name",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  seat\n",
+      "session_id": "uuid-seat",
+      "session_name": "seat",
+      "grants": "",
+      "expect": "deny",
+      "source": "author",
+      "why": "A session named seat is a name in the second field, not the role in the third."
+    },
+    {
+      "name": "deny-a-longer-role-word",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seats\n",
+      "session_id": "uuid-seat",
+      "session_name": "09.24-ochest01",
+      "grants": "",
+      "expect": "deny",
+      "source": "author",
+      "why": "The role is compared whole, so a longer word is not it."
+    },
+    {
+      "name": "deny-seat-name-without-seat-row",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-other",
+      "session_name": "09.24-ochest01",
+      "grants": "",
+      "expect": "deny",
+      "source": "design",
+      "why": "THE SEPARATING INPUT for the ruling against a name pattern: a session named like a seat whose own row is not the seat's holds nothing."
+    },
+    {
+      "name": "deny-mark-only-in-a-comment",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-x",
+      "session_name": "x",
+      "grants": "",
+      "expect": "deny",
+      "source": "author",
+      "why": "A commented row is not a row, so the seat role inside one grants nothing."
+    },
+    {
+      "name": "allow-lane-with-grant",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "# granted 2026-09-24 by the operator\n09.24-front4  research forks for the census\n",
+      "expect": "allow",
+      "source": "design",
+      "why": "A grant is a line whose first field is the session's name."
+    },
+    {
+      "name": "deny-grant-for-another-session",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "09.24-front40\n",
+      "expect": "deny",
+      "source": "author",
+      "why": "A grant is to one session; a name that merely begins with this one's is another's."
+    },
+    {
+      "name": "deny-grant-name-inside-a-comment",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "# 09.24-front4 asked, not granted\n",
+      "expect": "deny",
+      "source": "author",
+      "why": "A comment naming a session is not its grant."
+    },
+    {
+      "name": "allow-unreadable-grants",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": null,
+      "expect": "allow",
+      "source": "design",
+      "why": "A grant file that cannot be read is could-not-tell, and an uncertain answer never blocks."
+    },
+    {
+      "name": "allow-unreadable-roster",
+      "tool": "Agent",
+      "roster": null,
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "",
+      "expect": "allow",
+      "source": "design",
+      "why": "Without the roster the seat cannot be told from a lane, so the rule says nothing."
+    },
+    {
+      "name": "allow-anonymous-session",
+      "tool": "Agent",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "",
+      "session_name": "",
+      "grants": "",
+      "expect": "allow",
+      "source": "author",
+      "why": "A session with no id cannot be matched to a row."
+    },
+    {
+      "name": "allow-other-tool",
+      "tool": "Bash",
+      "roster": "uuid-lane  09.24-front4\nuuid-seat  09.24-ochest01  seat\n# uuid-x  commented  seat\n",
+      "session_id": "uuid-lane",
+      "session_name": "09.24-front4",
+      "grants": "",
+      "expect": "allow",
+      "source": "author",
+      "why": "The rule reads the subagent tools and no others."
+    }
+  ]
+}

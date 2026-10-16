@@ -1,4 +1,5 @@
 """Flask app factory + waitress entrypoint for the XRFD dashboard."""
+
 import json
 import os
 import queue
@@ -9,8 +10,7 @@ import time
 
 from flask import Flask, Response, jsonify, request, send_from_directory
 
-from . import config, lifecycle
-from . import __version__
+from . import __version__, config, lifecycle
 from .access_log import AccessLog
 
 
@@ -39,7 +39,7 @@ def create_app(state, bridge):
         if not cmd:
             return jsonify({"error": "missing 'cmd'"}), 400
         reply = bridge.send_command(cmd)
-        state.add_log("cmd", "%s  ->  %s" % (cmd, reply if reply else "(no reply)"))
+        state.add_log("cmd", "{}  ->  {}".format(cmd, reply if reply else "(no reply)"))
         if cmd.startswith("target "):
             bridge._maybe_refresh_targets()
         return jsonify({"ok": reply is not None, "reply": reply})
@@ -51,8 +51,8 @@ def create_app(state, bridge):
         if not ip:
             return jsonify({"error": "missing 'ip'"}), 400
         if not state.select_device(ip):
-            return jsonify({"error": "unknown device: %s" % ip}), 404
-        state.publish()          # push the switch to every open SSE client
+            return jsonify({"error": f"unknown device: {ip}"}), 404
+        state.publish()  # push the switch to every open SSE client
         return jsonify({"ok": True, "selected": ip})
 
     @app.get("/events")
@@ -61,17 +61,21 @@ def create_app(state, bridge):
             q = state.subscribe()
             try:
                 # immediate snapshot so a fresh client paints at once
-                yield "data: %s\n\n" % json.dumps(state.snapshot())
+                yield f"data: {json.dumps(state.snapshot())}\n\n"
                 while True:
                     try:
                         snap = q.get(timeout=15)
-                        yield "data: %s\n\n" % json.dumps(snap)
+                        yield f"data: {json.dumps(snap)}\n\n"
                     except queue.Empty:
-                        yield ": keepalive\n\n"   # comment frame keeps proxies open
+                        yield ": keepalive\n\n"  # comment frame keeps proxies open
             finally:
                 state.unsubscribe(q)
-        return Response(stream(), mimetype="text/event-stream",
-                        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+        return Response(
+            stream(),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @app.get("/")
     def index():
@@ -91,8 +95,9 @@ def create_app(state, bridge):
 def _write_pidfile():
     config.DATA_DIR.mkdir(parents=True, exist_ok=True)
     config.PIDFILE.write_text(
-        '{"pid": %d, "command": "python -m backend.app", "started_at": "%s"}'
-        % (os.getpid(), time.strftime("%Y-%m-%dT%H:%M:%S")))
+        f'{{"pid": {os.getpid()}, "command": "python -m backend.app", '
+        f'"started_at": "{time.strftime("%Y-%m-%dT%H:%M:%S")}"}}'
+    )
 
 
 def _lan_ips():
@@ -109,24 +114,27 @@ def _lan_ips():
 
 
 def main():
+    from waitress import serve
+
     from .state import State
     from .udp_bridge import UdpBridge
-    from waitress import serve
+
     state = State()
     bridge = UdpBridge(state)
     bridge.start()
     state.add_log("info", "dashboard started")
     _write_pidfile()
     _log_dir = config.REPO_ROOT / "log"
-    lifecycle.append(_log_dir, "xr-freed-to-udp", "STARTED",
-                     "version=%s pid=%d" % (__version__, os.getpid()))
+    lifecycle.append(
+        _log_dir, "xr-freed-to-udp", "STARTED", f"version={__version__} pid={os.getpid()}"
+    )
     app = create_app(state, bridge)
     port = config.WEB_PORT
     # 0.0.0.0 = bind on all interfaces; browse via one of these reachable URLs:
-    print("XRFD dashboard running (waitress, listening on 0.0.0.0:%d):" % port, flush=True)
-    print("  local:   http://localhost:%d" % port, flush=True)
+    print(f"XRFD dashboard running (waitress, listening on 0.0.0.0:{port}):", flush=True)
+    print(f"  local:   http://localhost:{port}", flush=True)
     for ip in _lan_ips():
-        print("  LAN:     http://%s:%d" % (ip, port), flush=True)
+        print(f"  LAN:     http://{ip}:{port}", flush=True)
     # systemd `stop` sends SIGTERM; Python's default would kill the process outright
     # and skip the finally-block cleanup. Raising SystemExit lets waitress unwind
     # cleanly (it reraises SystemExit), so the STOPPED log + pidfile removal run.
@@ -136,8 +144,7 @@ def main():
     finally:
         bridge.stop()
         config.PIDFILE.unlink(missing_ok=True)
-        lifecycle.append(_log_dir, "xr-freed-to-udp", "STOPPED",
-                         "pid=%d" % os.getpid())
+        lifecycle.append(_log_dir, "xr-freed-to-udp", "STOPPED", f"pid={os.getpid()}")
 
 
 if __name__ == "__main__":

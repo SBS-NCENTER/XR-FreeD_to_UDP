@@ -1,0 +1,25 @@
+# Dependabot for the ecosystems this tree has: keep the entries the tree
+# needs. The pull-request limit is zero: version bumps are read on the
+# Dependabot tab under Insights and taken up as issues when wanted. A
+# security update still opens its pull request, against main, and takes the
+# same check and review as any other.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: main
+    open-pull-requests-limit: 0
+    schedule:
+      interval: weekly
+  - package-ecosystem: uv
+    directory: /dashboard
+    target-branch: main
+    open-pull-requests-limit: 0
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /dashboard/frontend
+    target-branch: main
+    open-pull-requests-limit: 0
+    schedule:
+      interval: weekly

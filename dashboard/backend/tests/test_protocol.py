@@ -1,7 +1,9 @@
 from backend import protocol
 
-REAL = ("XRFD up=336055 ms=336055050 ip=10.10.204.123 rx=20157893 dhcp=0/0 rtr=Y "
-        "t0=A,20157893,0,0 t1=A,20157893,0,0 t2=off t3=off")
+REAL = (
+    "XRFD up=336055 ms=336055050 ip=10.10.204.123 rx=20157893 dhcp=0/0 rtr=Y "
+    "t0=A,20157893,0,0 t1=A,20157893,0,0 t2=off t3=off"
+)
 
 
 def test_parse_diag_basic_fields():
@@ -36,17 +38,17 @@ def test_parse_diag_garbage_returns_none():
 
 
 def test_parse_targets():
-    reply = ("t0 on 10.10.204.184:50001\n"
-             "t1 off 10.10.204.175:50001\n"
-             "garbage line\n")
+    reply = "t0 on 10.10.204.184:50001\nt1 off 10.10.204.175:50001\ngarbage line\n"
     out = protocol.parse_targets(reply)
     assert out == [
-        {"n": 0, "on": True,  "ip": "10.10.204.184", "port": 50001},
+        {"n": 0, "on": True, "ip": "10.10.204.184", "port": 50001},
         {"n": 1, "on": False, "ip": "10.10.204.175", "port": 50001},
     ]
 
 
 def test_build_command():
     assert protocol.build_command("target", 1, "on") == "target 1 on"
-    assert protocol.build_command("target", 2, "set", "1.2.3.4", 50001) == "target 2 set 1.2.3.4 50001"
+    assert (
+        protocol.build_command("target", 2, "set", "1.2.3.4", 50001) == "target 2 set 1.2.3.4 50001"
+    )
     assert protocol.build_command("reboot") == "reboot"

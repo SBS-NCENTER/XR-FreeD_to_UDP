@@ -30,6 +30,7 @@ def test_non_200_status_logs_code_only(capsys):
     def inner_app(env, start_response):
         start_response("404 NOT FOUND", [("Content-Type", "text/plain")])
         return [b"nope"]
+
     env = {"REMOTE_ADDR": "10.10.204.211", "REQUEST_METHOD": "GET", "PATH_INFO": "/missing"}
     b"".join(AccessLog(inner_app)(env, lambda *a, **k: None))
     assert capsys.readouterr().out.strip() == '10.10.204.211 "GET /missing" 404'
