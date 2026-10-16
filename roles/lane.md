@@ -61,6 +61,11 @@ host notes say where it is.
 
 ## Your notepad and your context
 
+- **Under the session root, read only your own**: your notepad and
+  `reports/<session name>/`. The seat's notepad and reports, and the other
+  lane's, are not yours to read, however near they sit; what you need from
+  the seat arrives by message (operator, 2026-10-16). The roster and the
+  grants there are the hooks' to read, not yours.
 - **Keep a notepad** at `<session root>/notepads/<session name>.md` from your first
   turn, one line per obligation in the shape
   `- [ ] what is owed  ->  Issue #N or path`. At a boundary between tasks it

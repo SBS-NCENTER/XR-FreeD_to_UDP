@@ -242,6 +242,11 @@ And what guards them:
 `<session root>` below is the directory `HARNESS_SESSION_ROOT` names, holding
 `.harness-session-root`; `CLAUDE.md`'s host notes say where it is.
 
+- **The seat reads a lane's notepad and reports** when it compacts or restarts
+  the lane and when it checks a report; a lane reads no record under the
+  session root but its own (`roles/lane.md`), so what a lane must know goes
+  to it by message, never by pointing it at a seat file (operator,
+  2026-10-16).
 - **The seat keeps a notepad** at `<session root>/notepads/<session name>.md` from
   its first turn, one line per obligation in the shape
   `- [ ] what is owed  ->  Issue #N or path`, brought up to date before a
