@@ -1,6 +1,6 @@
 ---
 name: memory
-description: The seat's. Use when writing, folding, archiving or removing a memory in the store under the session root, or when a lane sends a lesson. Gives the shape of a memory and its index row, and the checks and the backup every edit takes.
+description: The seat's. Use when writing, folding, archiving or removing a memory in the store HARNESS_MEMORY_DIR names, or when a lane sends a lesson. Gives the shape of a memory and its index row, and the checks and the backup every edit takes.
 ---
 
 # memory — editing the store
@@ -28,24 +28,26 @@ repository cannot give. What a memory is for is `doc/memory-store.md`.
 
 ## After every edit
 
-From the seat's worktree's root, since the check's checkout holds no store:
+From the seat's worktree's root, since the check's checkout holds no store;
+the scripts read the store `HARNESS_MEMORY_DIR` names (the settings set it):
 
 ```sh
 scripts/check-memory-links.sh
-python3 scripts/check-memory-citations.py --check
 python3 scripts/memory-index-load.py
+python3 scripts/check-memory-citations.py --check   # where the repository carries the citation checkers
 ```
 
-A floor that moved is re-derived in a commit of
-`scripts/check-memory-citations.py`. The same day, the store goes to its
-backup, the one copy outside this host:
+Where the checkers are carried, a floor that moved is re-derived in a commit
+of `scripts/check-memory-citations.py`. The store's backup is what the host
+notes say: a store in a synced vault needs none; one on a single host goes
+the same day to its backup, the one copy outside that host:
 
 ```sh
-rsync -a --delete ~/draft/memory/ <backup host>:<archive path>/memory/
+rsync -a --delete "$HARNESS_MEMORY_DIR"/ <backup host>:<archive path>/memory/
 ```
 
 The count is derived, never written down:
 
 ```sh
-find ~/draft/memory -maxdepth 1 -name '*.md' -not -name 'MEMORY.md' -not -name 'ARCHIVE.md' | wc -l
+find "$HARNESS_MEMORY_DIR" -maxdepth 1 -name '*.md' -not -name 'MEMORY.md' -not -name 'ARCHIVE.md' | wc -l
 ```

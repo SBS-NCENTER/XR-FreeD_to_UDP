@@ -15,8 +15,8 @@
 # empty, the directory every session record lives under; the gate records
 # sit beside them, in its gates/. It counts only while it holds the file
 # .harness-session-root, so an empty directory left at its path is never taken
-# for it. A host with no session root, the Pi and ts5-server's backup
-# runners, keeps its records in the state directory.
+# for it. A host with no session root (a runner's host, say) keeps its records
+# in the state directory.
 #
 # Nothing is created here: the writer, scripts/run-gates.sh, makes the
 # directory for its first record, resolves this once and exports it as

@@ -22,5 +22,5 @@ labels: ''
 ## Links
 
 <!-- the D numbers it rests on, as `D13` of a link to the design on main:
-     [`doc/<design>.md`](https://github.com/<owner>/<repo>/blob/main/doc/<design>.md)
+     [`doc/<design>.md`](https://github.com/SBS-NCENTER/XR-FreeD_to_UDP/blob/main/doc/<design>.md)
      A document anywhere in the body is such a link. -->

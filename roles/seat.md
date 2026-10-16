@@ -23,7 +23,9 @@ The orchestrator seat reads this beside `CLAUDE.md`.
 - **A rule states what applies now.** It carries a reason only where the
   reason guards a settled decision against being reopened, in a few words;
   the `(operator, YYYY-MM-DD)` tag marks a decision the operator made, and
-  git and the designs' `D` numbers keep the rest.
+  git and the designs' `D` numbers keep the rest. A rule with no tag was
+  decided in the source project, whose designs are chun-harness
+  `doc/origin/`, and adopted whole by the operator (2026-10-16).
 - **Each rule has one home, chosen by who acts on it**: `CLAUDE.md` what
   every session needs, subagents included; this file what only the seat
   does; `roles/lane.md` what only a lane does; `.claude/rules/code.md` the
@@ -134,6 +136,12 @@ The orchestrator seat reads this beside `CLAUDE.md`.
 - **When `main` moved after the check**, the branch takes `main` first
   (Branches) and the merge waits on the new green; the lane checks nothing
   again.
+- **One refresh at a time**: while a branch takes `main` for its landing,
+  nothing else moves `main`, the seat's own commits included, until that
+  branch has landed; a second pull request ready at the same time refreshes
+  after the first. A push to `main` between a lane's merge and its landing
+  costs that branch another merge and another check (operator, 2026-10-16,
+  in the source project).
 - **Then merge it** (Branches; the `integrate` skill). A report names the
   issue and the pull request, never a lane's hash, and the run the merge
   starts on `main` is never cancelled by hand.
@@ -184,8 +192,8 @@ Every move, once:
   hooks and the scripts under `scripts/` and `deploy/`; one dispatched as a
   lane's task goes by the lane's pull request. On its own branch at `main`,
   the seat runs the changed file's own test and nothing else (a script's
-  `--self-test`, `scripts/check-hooks.py` for a hook,
-  `scripts/check-doc-citations.py --check` for a document under `doc/`),
+  `--self-test`, `scripts/check-hooks.py` for a hook, the citation checkers
+  for a document under `doc/` where the repository carries them),
   commits, and runs `scripts/publish.sh HEAD main`, a fast-forward. Code
   goes by a lane's pull request.
 - **A release merges `main` into `production` with a merge commit**, on the
@@ -231,7 +239,10 @@ And what guards them:
 
 ## Sessions
 
-- **The seat keeps a notepad** at `~/draft/notepads/<session name>.md` from
+`<session root>` below is the directory `HARNESS_SESSION_ROOT` names, holding
+`.harness-session-root`; `CLAUDE.md`'s host notes say where it is.
+
+- **The seat keeps a notepad** at `<session root>/notepads/<session name>.md` from
   its first turn, one line per obligation in the shape
   `- [ ] what is owed  ->  Issue #N or path`, brought up to date before a
   compaction and read again after.
@@ -249,7 +260,7 @@ And what guards them:
 - **The watch runs while a lane does** (the `lanes` skill), and the seat
   reads its log at the top of turns it takes anyway: a `BLOCKED` lane is
   answered first, and a lane silent for fifteen minutes is `QUIET`. The
-  roster, `~/draft/lane-watch.roster`, holds one row per live session.
+  roster, `<session root>/lane-watch.roster`, holds one row per live session.
 - **What a lane cannot do comes to the seat, and the seat does it**: a unit
   the lane's classifier refuses, or one the lane's rules keep from it, is
   part of the task the operator directed, and the seat does it from its own
@@ -258,9 +269,10 @@ And what guards them:
   unit and is never routed around.
 - **The seat may launch subagents**, for reading that fans out and for
   drafts, and checks an agent's evidence before it makes the edit itself. An
-  agent's output becomes a change or an issue, never a committed report. A
-  grant the operator gives a lane is a line naming the session, which the
-  seat writes to `~/draft/grants/subagents`.
+  agent's output becomes a change or an issue, never a committed report;
+  `/code-review` over a task's diff is the independent reader. A grant the
+  operator gives a lane is a line naming the session, which the seat writes
+  to `<session root>/grants/subagents`.
 - **Standing grants**: clearing what a dead run left in `/tmp` needs no
   approval; anything else a session wants to do without asking is written
   here first, on the operator's word.
@@ -277,7 +289,8 @@ And what guards them:
 - **A memory holds no work in progress**: what is open, in flight, next or
   deployed is the issue, the pull request and the notepad. A memory holds
   what stays true until a decision changes it.
-- **The store is `~/draft/memory/`, outside git** (`CLAUDE.md`), and every
+- **The store is what `autoMemoryDirectory` and `HARNESS_MEMORY_DIR` name,
+  outside git** (`CLAUDE.md`'s host notes), and every
   edit to it follows the `memory` skill: a memory's shape, its index row,
   the checks and the copy to the backup host the same day.
 - **A memory holds what the repository cannot give**, cut to its lesson: the
@@ -287,3 +300,9 @@ And what guards them:
 - **Nothing outside the store cites a memory by name**: a name moves when the
   index is folded. Write the fact where it is needed instead, short in the
   comment or the issue, long as a `D` number.
+- **The generic lessons are a second store**, shared by every repository of
+  the workspace and named by `CLAUDE.md`'s host notes beside this one: the
+  source project's lessons as lifted, kept by the same rules. A lesson that
+  would fire in any repository goes there; one that fires here alone goes
+  here. Read its index when a lesson of the kind might exist, and before
+  writing one.

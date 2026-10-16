@@ -24,7 +24,6 @@ log/
 __pycache__/
 *.pyc
 
-.superpowers/
 dashboard/frontend/node_modules/
 dashboard/frontend/dist/
 dashboard/.venv/

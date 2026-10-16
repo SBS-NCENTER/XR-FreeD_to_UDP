@@ -4,6 +4,9 @@ A lane reads this beside `CLAUDE.md`.
 
 ## Working with the seat
 
+`<session root>` is the directory `HARNESS_SESSION_ROOT` names; `CLAUDE.md`'s
+host notes say where it is.
+
 - **A lane works in its own worktree and holds one task at a time; the seat
   watches it.** You hold a task, not a role. The seat's dispatch names the
   task as its issue, `Issue #N`, or the Dependabot pull request you triage,
@@ -19,7 +22,7 @@ A lane reads this beside `CLAUDE.md`.
   between only when you are blocked on a ruling. No acknowledgement, no
   progress report, no report per commit.
 - **Report to the seat by message**, and keep it to what the seat acts on.
-  Long enumerations go to a file under `~/draft/reports/<session name>/`, and
+  Long enumerations go to a file under `<session root>/reports/<session name>/`, and
   the message names its path. Your terminal gets one closing line.
 - **A question for the operator goes to the seat**, with the options and a
   recommendation. Wording is not such a question: a sentence a screen shows
@@ -58,7 +61,7 @@ A lane reads this beside `CLAUDE.md`.
 
 ## Your notepad and your context
 
-- **Keep a notepad** at `~/draft/notepads/<session name>.md` from your first
+- **Keep a notepad** at `<session root>/notepads/<session name>.md` from your first
   turn, one line per obligation in the shape
   `- [ ] what is owed  ->  Issue #N or path`. At a boundary between tasks it
   holds each branch, its tip, its pull request and every obligation you

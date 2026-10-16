@@ -60,6 +60,13 @@ if [ ! -d "$MEM" ]; then
   exit 2
 fi
 
+# A store holding no memory yet (its index and archive only) has nothing to
+# resolve, and the zero guard below would read that as a broken pattern.
+if ! find "$MEM" -maxdepth 1 -name '*.md' ! -name MEMORY.md ! -name ARCHIVE.md | grep -q .; then
+  echo "check-memory-links: the store at $MEM holds no memory yet; nothing to resolve"
+  exit 0
+fi
+
 # Prose about the syntax, not citations.
 readonly -A EXCEPTIONS=()
 

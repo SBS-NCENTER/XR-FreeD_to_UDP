@@ -29,7 +29,7 @@ holds, and the seat checks that against the tree.
 
 ```sh
 pgrep -a -f '^python3 -u .*[w]atch-lanes'     # none may run already
-LANE_STALE=900 python3 -u scripts/watch-lanes.py >> ~/draft/watch/lane-watch.log
+LANE_STALE=900 python3 -u scripts/watch-lanes.py >> "$HARNESS_SESSION_ROOT/watch/lane-watch.log"
 ```
 
 Run detached, in its own tmux window, from the seat's worktree, which tracks
@@ -41,7 +41,8 @@ when the watch is not started from a checkout of the repository.
 
 ## The roster
 
-`~/draft/lane-watch.roster`, one row per live session:
+`<session root>/lane-watch.roster` (`HARNESS_SESSION_ROOT`), one row per live
+session:
 
 ```
 <uuid>  <session name>  [seat]
@@ -56,19 +57,23 @@ hook reads. A row goes when its session ends.
 When no session is live in a lane's worktree, and the operator granted it in
 their own prompt:
 
-1. The tmux session is the operator's, its lanes' window `lanes`, a lane's
+1. Bring the worktree to `main` first: `git -C <worktree> fetch -q origin &&
+   git -C <worktree> switch -q --detach origin/main`. A session reads
+   `CLAUDE.md` and `roles/lane.md` from the tree it starts in, so a worktree
+   left at an older commit starts it on older rules.
+2. The tmux session is the operator's, its lanes' window `lanes`, a lane's
    worktree the one `CLAUDE.md`'s host notes name for it. With no window:
    `tmux new-window -d -P -F '#{pane_id}' -t <session>: -n lanes -c <worktree>`;
    with one, the new pane beside the last:
    `tmux split-window -h -d -P -F '#{pane_id}' -t <session>:lanes -c <worktree>`.
-2. `tmux send-keys -t <pane> 'claude' Enter`, with no flag: the settings
+3. `tmux send-keys -t <pane> 'claude' Enter`, with no flag: the settings
    give the mode and the model.
-3. Once `tmux capture-pane -p -t <pane>` shows the prompt and its status
+4. Once `tmux capture-pane -p -t <pane>` shows the prompt and its status
    line, type `/rename <MM.DD>-lane-a<n>` (or `-lane-b<n>`), read the input
    line, then `Enter`. `<n>` restarts at 1 each date: count that day's names
    under `~/.claude/sessions/` and, for sessions that have ended, the
    `"customTitle":"<MM.DD>-lane-` lines in the worktree's transcripts under
    `~/.claude/projects/`.
-4. Confirm the name in the session's record under `~/.claude/sessions/`,
+5. Confirm the name in the session's record under `~/.claude/sessions/`,
    sending the rename again while it has none.
-5. Read the uuid from the record and add its row to the roster.
+6. Read the uuid from the record and add its row to the roster.
