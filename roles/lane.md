@@ -4,8 +4,9 @@ A lane reads this beside `CLAUDE.md`.
 
 ## Working with the seat
 
-`<session root>` is the directory `HARNESS_SESSION_ROOT` names; `CLAUDE.md`'s
-host notes say where it is.
+`<session root>` is the directory `HARNESS_SESSION_ROOT` names, and
+`<records>` your own folder under it, what `HARNESS_RECORDS_DIR` names;
+`CLAUDE.md`'s host notes say where they are.
 
 - **A lane works in its own worktree and holds one task at a time; the seat
   watches it.** You hold a task, not a role. The seat's dispatch names the
@@ -22,7 +23,7 @@ host notes say where it is.
   between only when you are blocked on a ruling. No acknowledgement, no
   progress report, no report per commit.
 - **Report to the seat by message**, and keep it to what the seat acts on.
-  Long enumerations go to a file under `<session root>/reports/<session name>/`, and
+  Long enumerations go to a file under `<records>/reports/<session name>/`, and
   the message names its path. Your terminal gets one closing line.
 - **A question for the operator goes to the seat**, with the options and a
   recommendation. Wording is not such a question: a sentence a screen shows
@@ -61,12 +62,14 @@ host notes say where it is.
 
 ## Your notepad and your context
 
-- **Under the session root, read only your own**: your notepad and
-  `reports/<session name>/`. The seat's notepad and reports, and the other
-  lane's, are not yours to read, however near they sit; what you need from
-  the seat arrives by message (operator, 2026-10-16). The roster and the
-  grants there are the hooks' to read, not yours.
-- **Keep a notepad** at `<session root>/notepads/<session name>.md` from your first
+- **Your records are `<records>`**, `<session root>/lane-a` or `lane-b`:
+  `notepads/<session name>.md` and `reports/<session name>/`. The seat's
+  folder and the other lane's beside it are not yours: the settings deny
+  them to your Read and Edit, and the `records-of-another` hook refuses a
+  command that names one; what you need from the seat arrives by message
+  (operator, 2026-10-16). The roster and the grants at the root are the
+  hooks' to read, not yours.
+- **Keep a notepad** at `<records>/notepads/<session name>.md` from your first
   turn, one line per obligation in the shape
   `- [ ] what is owed  ->  Issue #N or path`. At a boundary between tasks it
   holds each branch, its tip, its pull request and every obligation you

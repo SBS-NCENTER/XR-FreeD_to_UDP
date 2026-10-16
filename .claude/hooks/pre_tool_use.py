@@ -83,9 +83,23 @@ def grant_rule(data, root):
     _apply(root, finding, name, {"tool": tool})
 
 
+def records_rule(data, root):
+    """A Bash command naming another session's records folder."""
+    if entry.mode_of(root, "records-of-another") == entry.OFF:
+        return
+    if data.get("tool_name") != "Bash":
+        return
+    command = (data.get("tool_input") or {}).get("command")
+    if not isinstance(command, str) or not command.strip():
+        return
+    own = entry.RECORDS if entry.RECORDS != entry.ROOT else None
+    finding = rules.records_of_another(command, own, entry.other_records())
+    _apply(root, finding, entry.session_name(data), {"head": command.strip().splitlines()[0][:120]})
+
+
 #: Rules are applied in order, and the first to deny ends the process. Adding a
 #: rule here is adding one line.
-RULES = (bash_rules, grant_rule)
+RULES = (bash_rules, records_rule, grant_rule)
 
 
 def main():

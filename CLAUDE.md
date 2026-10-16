@@ -197,6 +197,10 @@ route around them.
   generic lessons every repository's sessions read: its index, when a lesson
   of the kind might exist; the seat writes there what would fire in any
   repository.
-- **Every session record lives under the session root**, a report under
-  `reports/<session name>/`; the root counts only while it holds
-  `.harness-session-root` (chun-harness `doc/sessions.md`).
+- **Every session record lives under the session root**, in the folder of the
+  worktree that wrote it (`HARNESS_RECORDS_DIR`: `<root>/seat`, `<root>/lane-a`,
+  `<root>/lane-b`), a notepad as `notepads/<session name>.md` and a report
+  under `reports/<session name>/`; a lane's settings deny it the other
+  folders, and the `records-of-another` hook refuses a command that names
+  one. The root counts only while it holds `.harness-session-root`
+  (chun-harness `doc/sessions.md`).

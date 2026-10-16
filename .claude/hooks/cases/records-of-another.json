@@ -1,0 +1,87 @@
+{
+  "rule": "records-of-another",
+  "reads": "the Bash command's text, this session's records directory and the other sessions' directories under the session root",
+  "cases": [
+    {
+      "name": "deny-cat-of-the-seats-notepad-by-absolute-path",
+      "command": "cat /home/u/ws/repo/draft/seat/notepads/10.16-seat01.md",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "deny",
+      "source": "design",
+      "why": "The Read tool is denied the seat's folder by the settings; a cat is the same read through the shell, and the operator wants a lane unable to see the seat's records (2026-10-16)."
+    },
+    {
+      "name": "deny-the-other-lanes-report-by-relative-path",
+      "command": "sed -n 1,40p ../draft/lane-b/reports/10.16-lane-b1/diff.txt",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "deny",
+      "source": "design",
+      "why": "A path spelled from the worktree still names the other lane's folder: the root's name and the folder's name together are the tell."
+    },
+    {
+      "name": "deny-a-write-into-the-seats-folder",
+      "command": "echo note >> /home/u/ws/repo/draft/seat/notepads/10.16-seat01.md",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "deny",
+      "source": "design",
+      "why": "Reading and writing another session's records are the same trespass; the rule looks at the path, not the verb."
+    },
+    {
+      "name": "deny-python-opening-the-seats-folder",
+      "command": "python3 -c \"print(open('/home/u/ws/repo/draft/seat/notepads/10.16-seat01.md').read())\"",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "deny",
+      "source": "author",
+      "why": "The path is matched in the command's text, whatever program reads it."
+    },
+    {
+      "name": "allow-own-notepad",
+      "command": "cat /home/u/ws/repo/draft/lane-a/notepads/10.16-lane-a1.md",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "allow",
+      "source": "design",
+      "why": "A session's own records are its to read and write."
+    },
+    {
+      "name": "allow-the-shared-roster",
+      "command": "cat /home/u/ws/repo/draft/lane-watch.roster",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "allow",
+      "source": "author",
+      "why": "The roster and the grants sit at the root, outside every session's folder; the rule names only the other sessions' folders."
+    },
+    {
+      "name": "allow-the-seat-reading-a-lane",
+      "command": "cat /home/u/ws/repo/draft/lane-a/notepads/10.16-lane-a1.md",
+      "own": "/home/u/ws/repo/draft/seat",
+      "others": [],
+      "expect": "allow",
+      "source": "design",
+      "why": "The seat's settings name no other folder as denied: it reads a lane's notepad when it compacts or reviews it. The entry hands the seat an empty list."
+    },
+    {
+      "name": "allow-a-word-that-only-resembles-the-folder",
+      "command": "grep -rn seat/notepads doc/sessions.md",
+      "own": "/home/u/ws/repo/draft/lane-a",
+      "others": ["/home/u/ws/repo/draft/seat", "/home/u/ws/repo/draft/lane-b"],
+      "expect": "allow",
+      "source": "author",
+      "why": "Only the root's own name followed by the folder's (draft/seat) or the absolute path matches; a bare folder name in prose does not."
+    },
+    {
+      "name": "allow-when-the-host-separates-nothing",
+      "command": "cat /home/u/ws/repo/draft/seat/notepads/10.16-seat01.md",
+      "own": null,
+      "others": [],
+      "expect": "allow",
+      "source": "design",
+      "why": "A host that sets no HARNESS_RECORDS_DIR keeps every record at the root, and the rule has nothing to guard; silence, never a wrong refusal."
+    }
+  ]
+}

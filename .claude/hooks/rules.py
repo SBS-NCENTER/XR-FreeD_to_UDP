@@ -292,3 +292,35 @@ def agent_grant(tool_name, roster, session_id, grants, session_name,
         "operator." % (name or "this session", grants_path),
         tool_name,
     )
+
+
+# -- records-of-another -----------------------------------------------------
+
+
+def records_of_another(command, own, others):
+    """A command that names another session's records folder.
+
+    `own` is this session's records folder (None when the host separates
+    nothing) and `others` the other sessions' folders under the same root, as
+    absolute paths. A command matches when its text holds one of those paths,
+    or the root's name followed by the folder's (`draft/seat`), which is how a
+    path spelled from a worktree reads. Silent with no `own` or no `others`:
+    nothing is guarded, so nothing is refused.
+    """
+    if not command or not own or not others:
+        return None
+    root = os.path.dirname(own.rstrip("/"))
+    for other in others:
+        other = other.rstrip("/")
+        short = os.path.basename(root) + "/" + os.path.basename(other)
+        for spelling in (other, short):
+            if spelling and spelling in command:
+                return Finding(
+                    "records-of-another",
+                    "%s is another session's records folder (the seat's or the "
+                    "other lane's), and this session's are %s. A lane reads and "
+                    "writes nothing of another session's: what you need from the "
+                    "seat arrives by message, so ask the seat for it." % (other, own),
+                    spelling,
+                )
+    return None

@@ -107,6 +107,7 @@ RUN_BY = {
     "git-checkout": ("pre_tool_use.py",),
     "git-push-door": ("pre_tool_use.py",),
     "agent-grant": ("pre_tool_use.py",),
+    "records-of-another": ("pre_tool_use.py",),
 }
 
 
@@ -178,6 +179,9 @@ def run_rule_case(zshwords, rules, rule, case):
     is answered from a parse, and a parse that raises is allow, which is the
     property the whole hook set rests on.
     """
+    if rule == "records-of-another":
+        finding = rules.records_of_another(case.get("command"), case.get("own"), case.get("others"))
+        return "deny" if finding else "allow"
     if rule == "agent-grant":
         finding = rules.agent_grant(
             case.get("tool"), case.get("roster"), case.get("session_id"),
@@ -205,7 +209,7 @@ def run_rule_case(zshwords, rules, rule, case):
 #: are of another shape entirely.
 COMMAND_RULES = (
     "zsh-colon-modifier", "zsh-pipestatus", "zsh-unsplit-variable",
-    "git-checkout", "git-push-door", "agent-grant",
+    "git-checkout", "git-push-door", "agent-grant", "records-of-another",
 )
 
 
@@ -404,6 +408,27 @@ def main():
                        tool_input={"prompt": "p"}),
                   {"agent-grant": "deny"}, expect_output,
                   dict(roster_env, HARNESS_SUBAGENT_GRANTS=str(grants_path)))
+
+        # A host that keeps each worktree's records in its own folder: the
+        # notepad line names the folder HARNESS_RECORDS_DIR gave, and a command
+        # naming another session's folder is refused in deny mode, not in off.
+        own = records / "lane-a"
+        (own / "notepads").mkdir(parents=True)
+        (records / "seat" / "notepads").mkdir(parents=True)
+        out = drive("notepad-absent, naming the records folder,", "user_prompt_submit.py",
+                    prompt, {"notepad-absent": "deny"}, True,
+                    dict(roster_env, HARNESS_RECORDS_DIR=str(own)))
+        if str(own / "notepads" / "x.md") not in out:
+            findings.append("the absent-notepad line does not name the notepad under "
+                            "HARNESS_RECORDS_DIR: %s" % out)
+        peek = dict(base, hook_event_name="PreToolUse", tool_name="Bash",
+                    tool_input={"command": "cat %s/seat/notepads/10.16-seat01.md" % records})
+        for mode, expect_output in (("deny", True), ("off", False)):
+            drive("pre_tool_use.py (records-of-another, %s)" % mode, "pre_tool_use.py",
+                  peek, {"records-of-another": mode}, expect_output,
+                  {"HARNESS_RECORDS_DIR": str(own)})
+        drive("records-of-another with no records folder set", "pre_tool_use.py",
+              peek, {"records-of-another": "deny"}, False)
 
         # The marker is what makes the root present, not the directory: without
         # it the same records read as absent, and every rule that reads them is

@@ -5,5 +5,6 @@
   "zsh-unsplit-variable": "deny",
   "git-checkout": "deny",
   "git-push-door": "deny",
-  "agent-grant": "deny"
+  "agent-grant": "deny",
+  "records-of-another": "deny"
 }

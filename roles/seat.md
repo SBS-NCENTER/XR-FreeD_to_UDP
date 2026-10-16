@@ -240,14 +240,17 @@ And what guards them:
 ## Sessions
 
 `<session root>` below is the directory `HARNESS_SESSION_ROOT` names, holding
-`.harness-session-root`; `CLAUDE.md`'s host notes say where it is.
+`.harness-session-root`, and `<records>` the seat's own folder under it, what
+`HARNESS_RECORDS_DIR` names; `CLAUDE.md`'s host notes say where they are.
 
-- **The seat reads a lane's notepad and reports** when it compacts or restarts
-  the lane and when it checks a report; a lane reads no record under the
-  session root but its own (`roles/lane.md`), so what a lane must know goes
+- **Each session's records are its own folder under the session root**
+  (`HARNESS_RECORDS_DIR`: `<session root>/seat`, `lane-a`, `lane-b`). The seat
+  reads a lane's notepad and reports there when it compacts or restarts the
+  lane and when it checks a report; a lane is denied the other folders by its
+  settings and the `records-of-another` hook, so what a lane must know goes
   to it by message, never by pointing it at a seat file (operator,
   2026-10-16).
-- **The seat keeps a notepad** at `<session root>/notepads/<session name>.md` from
+- **The seat keeps a notepad** at `<records>/notepads/<session name>.md` from
   its first turn, one line per obligation in the shape
   `- [ ] what is owed  ->  Issue #N or path`, brought up to date before a
   compaction and read again after.

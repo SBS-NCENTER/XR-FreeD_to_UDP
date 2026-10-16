@@ -20,7 +20,12 @@ import sys
 ROOT = os.environ.get("HARNESS_SESSION_ROOT") or os.path.expanduser("~/draft")
 #: The file whose presence in `ROOT` says the records are really there.
 MARKER = ".harness-session-root"
-NOTEPADS = ROOT + "/notepads"
+#: This session's own records -- its notepads and reports -- when a host keeps
+#: each worktree's in a folder of its own under the root (`HARNESS_RECORDS_DIR`,
+#: `<root>/seat`, `<root>/lane-a`, ...); a host that sets nothing keeps them at
+#: the root.
+RECORDS = os.environ.get("HARNESS_RECORDS_DIR") or ROOT
+NOTEPADS = RECORDS + "/notepads"
 EVENTS = ROOT + "/hook-events"
 ROSTER = os.environ.get("LANE_ROSTER", ROOT + "/lane-watch.roster")
 GRANTS = os.environ.get("HARNESS_SUBAGENT_GRANTS", ROOT + "/grants/subagents")
@@ -109,6 +114,28 @@ def notepad_text(name):
             return handle.read()
     except Exception:
         return None
+
+
+def other_records():
+    """The other sessions' records folders under the root, as absolute paths.
+
+    Empty when this host separates nothing (`RECORDS` is the root itself) or
+    the root is absent: the rule that reads this is then silent. A folder
+    counts when it holds a `notepads` directory, which is what every session's
+    folder holds and nothing else under the root does.
+    """
+    if RECORDS == ROOT or not root_present():
+        return []
+    own = os.path.realpath(RECORDS)
+    out = []
+    try:
+        for name in sorted(os.listdir(ROOT)):
+            path = os.path.join(ROOT, name)
+            if os.path.isdir(os.path.join(path, "notepads")) and os.path.realpath(path) != own:
+                out.append(path)
+    except Exception:
+        return []
+    return out
 
 
 def grants_text():
