@@ -116,6 +116,23 @@ def notepad_text(name):
         return None
 
 
+def is_seat(data):
+    """Whether this session is the seat, which reads every lane's records.
+
+    The seat is the session whose roster row carries the role `seat`, or, before
+    it has written its row, the one whose records folder is named `seat`: the
+    rule that reads this guards the lanes, and the seat is never a lane.
+    """
+    try:
+        import rules
+        row = rules.roster_row(roster_text(), data.get("session_id"))
+        if row is not None and len(row) > 2 and row[2] == rules.SEAT_ROLE:
+            return True
+        return os.path.basename(RECORDS.rstrip("/")) == "seat"
+    except Exception:
+        return False
+
+
 def other_records():
     """The other sessions' records folders under the root, as absolute paths.
 

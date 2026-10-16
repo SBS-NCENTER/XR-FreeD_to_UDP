@@ -93,6 +93,8 @@ def records_rule(data, root):
     if not isinstance(command, str) or not command.strip():
         return
     own = entry.RECORDS if entry.RECORDS != entry.ROOT else None
+    if entry.is_seat(data):
+        return
     finding = rules.records_of_another(command, own, entry.other_records())
     _apply(root, finding, entry.session_name(data), {"head": command.strip().splitlines()[0][:120]})
 

@@ -429,6 +429,22 @@ def main():
                   {"HARNESS_RECORDS_DIR": str(own)})
         drive("records-of-another with no records folder set", "pre_tool_use.py",
               peek, {"records-of-another": "deny"}, False)
+        # The seat is never refused a lane's folder: known by its folder's name,
+        # or by its roster row before it has a folder so named.
+        lane_peek = dict(base, hook_event_name="PreToolUse", tool_name="Bash",
+                         tool_input={"command": "cat %s/lane-a/notepads/x.md" % records})
+        (records / "orchestrator" / "notepads").mkdir(parents=True)
+        drive("records-of-another for the seat, by its folder's name", "pre_tool_use.py",
+              lane_peek, {"records-of-another": "deny"}, False,
+              {"HARNESS_RECORDS_DIR": str(records / "seat")})
+        roster_path.write_text("s x seat\n")
+        drive("records-of-another for the seat, by its roster row", "pre_tool_use.py",
+              lane_peek, {"records-of-another": "deny"}, False,
+              dict(roster_env, HARNESS_RECORDS_DIR=str(records / "orchestrator")))
+        roster_path.write_text("s x\n")
+        drive("records-of-another for a lane in a folder of another name", "pre_tool_use.py",
+              lane_peek, {"records-of-another": "deny"}, True,
+              dict(roster_env, HARNESS_RECORDS_DIR=str(records / "orchestrator")))
 
         # The marker is what makes the root present, not the directory: without
         # it the same records read as absent, and every rule that reads them is
